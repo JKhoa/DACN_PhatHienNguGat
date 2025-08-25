@@ -1,0 +1,32 @@
+:root{
+  --bg:#000;
+  --panel:#0b0f13;
+  --grid:#0f151a;
+  --neon:#00E5FF;
+  --text:#CFF7FF;
+}
+html,body{background:var(--bg);color:var(--text);font-family:Inter,Arial,sans-serif;}
+/* grid background */
+body::before{
+  content:"";position:fixed;inset:0;
+  background-image:linear-gradient(transparent 95%,rgba(0,229,255,.08) 95%),linear-gradient(90deg,transparent 95%,rgba(0,229,255,.08) 95%);
+  background-size:40px 40px,40px 40px;pointer-events:none;opacity:.5;
+}
+.hud-header{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:14px 12px;border:1px solid rgba(0,229,255,.25);border-radius:14px;background:linear-gradient(180deg,rgba(0,229,255,.06),rgba(0,229,255,.02));box-shadow:0 0 24px rgba(0,229,255,.08) inset;}
+.hud-title{display:flex;align-items:center;gap:12px}
+.hud-dot{width:10px;height:10px;border:2px solid var(--neon);border-radius:50%;box-shadow:0 0 12px var(--neon);}
+.hud-title h1{margin:0;font-family:'Orbitron',Inter,Arial,sans-serif;letter-spacing:.8px;color:var(--neon);font-size:22px}
+.hud-tag{opacity:.9}
+.hud-live{display:flex;align-items:center;gap:8px}
+.badge{border:1px solid var(--neon);padding:4px 10px;border-radius:999px;color:var(--bg);background:var(--neon);font-weight:700;box-shadow:0 0 18px rgba(0,229,255,.4);}
+.panel{background:var(--panel);border:1px solid rgba(0,229,255,.2);border-radius:16px;padding:12px;box-shadow:0 0 24px rgba(0,229,255,.06) inset;}
+/* decorate corners */
+.panel::after{content:"";position:absolute;inset:auto 12px 12px auto;width:48px;height:8px;border-top:2px solid var(--neon);border-right:2px solid var(--neon);opacity:.6;filter:drop-shadow(0 0 6px var(--neon));}
+/* widgets */
+.stSelectbox>div,.stNumberInput>div,.stSlider>div,.stTextInput>div{background:#0e141a;border-radius:12px;padding:6px 8px;border:1px solid rgba(0,229,255,.16)}
+.stCheckbox label,.stSelectbox label,.stSlider label,.stTextInput label,.stNumberInput label{color:var(--neon)!important;font-weight:700}
+.stButton>button{background:var(--neon)!important;color:#001218!important;border:none;border-radius:10px;font-weight:800}
+/* image frame */
+img[alt="frame"]{outline:2px solid var(--neon);border-radius:10px;box-shadow:0 0 18px rgba(0,229,255,.25)}
+/* compact status line */
+.status-line{margin-top:6px;color:var(--text);opacity:.9}
