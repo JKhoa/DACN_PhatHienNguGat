@@ -1,0 +1,13 @@
+# Aggregated requirements for the project (root-level)
+ultralytics>=8.2.70
+opencv-python==4.10.0.84
+Pillow>=10
+PyQt5>=5.15
+# Optional extras for eye/yawn pipeline and notebooks
+mediapipe==0.10.14
+numpy>=1.26
+matplotlib>=3.9
+pandas>=2.2
+# Torch must match your platform; preinstalled recommended
+# torch
+# torchvision

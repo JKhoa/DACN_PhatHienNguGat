@@ -2,6 +2,7 @@ import streamlit as st, streamlit.components.v1 as components
 import cv2, tempfile, time
 from ultralytics import YOLO
 from pathlib import Path
+import math
 
 st.set_page_config(layout="wide", page_title="Sleepy YOLO Pose — HUD", page_icon="🎯")
 
@@ -54,7 +55,11 @@ if src == "Video":
     uploaded = st.file_uploader("Chọn video", type=["mp4","mov","avi"])
 
 # ---------- Placeholders ----------
-frame_placeholder = st.empty()
+col1, col2 = st.columns([2, 1])
+with col1:
+    frame_placeholder = st.empty()
+with col2:
+    log_placeholder = st.empty()
 status_placeholder = st.empty()
 
 @st.cache_resource(show_spinner=False)
@@ -66,21 +71,31 @@ def parse_res(txt: str):
     return int(w), int(h)
 
 def open_capture(idx: int, res_txt: str, use_mjpg: bool):
-    cap = cv2.VideoCapture(int(idx), cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        return None
-    w, h = parse_res(res_txt)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  w)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    if use_mjpg:
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-    return cap
+    backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]
+    for backend in backends:
+        cap = cv2.VideoCapture(int(idx), backend)
+        if cap.isOpened():
+            w, h = parse_res(res_txt)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH,  w)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+            cap.set(cv2.CAP_PROP_FPS, 30)
+            # if use_mjpg:
+            #     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'M','J','P','G'))
+            return cap
+    return None
+
+if 'sleep_log' not in st.session_state:
+    st.session_state.sleep_log = []
 
 # ---------- RUN LOOP ----------
 if run:
     model = load_model(model_path)
 
+    cap = None
+    SLEEP_ANGLE = 45
+    SLEEP_FRAMES = 45
+    sleep_states = {}
+    ema_fps = None
     if src == "Webcam":
         cap = open_capture(cam_index, capture_res, mjpg)
         if cap is None:
@@ -89,14 +104,12 @@ if run:
     else:
         if not uploaded:
             st.warning("Hãy upload video trước khi Run."); st.stop()
-        t = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-        t.write(uploaded.read()); t.flush()
-        cap = cv2.VideoCapture(t.name)
-
-    last = 0.0
-    ema_fps = None
+        else:
+            t = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+            t.write(uploaded.read()); t.flush()
+            cap = cv2.VideoCapture(t.name)
     try:
-        while True:
+        while cap is not None and cap.isOpened():
             t0 = time.time()
             ok, frame = cap.read()
             if not ok or frame is None:
@@ -110,17 +123,30 @@ if run:
             elif flip_mode == "Quay 180°":
                 frame = cv2.rotate(frame, cv2.ROTATE_180)
 
-            # Inference: BỎ LỌC CONF (conf=0.0) → luôn hiện tất cả
+            # Inference
             res = model(frame, imgsz=int(imgsz), conf=0.5)
+            r0 = res[0] if res and len(res) > 0 else None
+            vis = r0.plot(line_width=int(line_width), conf=True) if r0 is not None else frame.copy()
 
-            # Safe plot (GIỮ SỐ CONF: conf=True)
-            try:
-                r0 = res[0] if res and len(res) > 0 else None
-                vis = r0.plot(line_width=int(line_width), conf=True) if r0 is not None else None
-                if vis is None:
-                    vis = frame.copy()
-            except Exception:
-                vis = frame.copy()
+            # Phát hiện ngủ gật dựa vào keypoints
+            sleepy_count = 0
+            if r0 is not None and hasattr(r0, "keypoints"):
+                for i, kp in enumerate(r0.keypoints):
+                    k = kp.xy[0].cpu().numpy()
+                    if len(k) >= 7:
+                        nose, l_sh, r_sh = k[0], k[5], k[6]
+                        neck = ((l_sh[0]+r_sh[0])/2, (l_sh[1]+r_sh[1])/2)
+                        dx, dy = nose[0]-neck[0], nose[1]-neck[1]
+                        ang = abs(math.degrees(math.atan2(dx, dy)))
+                        prev = sleep_states.get(i, 0)
+                        sleep_states[i] = prev + 1 if ang > SLEEP_ANGLE else 0
+                        state = "NGỦ GẬT" if sleep_states[i] >= SLEEP_FRAMES else "Bình thường"
+                        if state == "NGỦ GẬT": 
+                            sleepy_count += 1
+                            if sleep_states[i] == SLEEP_FRAMES: # Log khi mới phát hiện
+                                st.session_state.sleep_log.insert(0, f"[{time.strftime('%H:%M:%S')}] Người {i+1} có dấu hiệu ngủ gật!\n")
+                        cv2.putText(vis, f"{state} ({ang:.1f}°)", (int(nose[0]), int(nose[1])-10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,255) if state=="NGỦ GẬT" else (0,255,0), 2)
 
             # BGR -> RGB
             try:
@@ -143,15 +169,21 @@ if run:
                 rgb, channels="RGB", output_format="PNG", width=render_w, caption="frame"
             )
 
-            # --- FPS & Latency (1 dòng; muốn ẩn thì comment 3 dòng dưới) ---
+            log_placeholder.text_area(
+                "Log phát hiện",
+                "".join(st.session_state.sleep_log),
+                height=400,
+                key="sleep_log_textarea",
+            )
+
+            # Hiển thị trạng thái tổng
+            status_text = f"<div class='status-line'><b>FPS:</b> {{fps:.1f}} &nbsp;|&nbsp; <b>Latency:</b> {{latency}} ms &nbsp;|&nbsp; <b>Số người ngủ gật:</b> {sleepy_count}</div>"
             t1 = time.time()
             iter_time = t1 - t0
             fps_now = 1.0 / max(iter_time, 1e-6)
             ema_fps = fps_now if ema_fps is None else (0.8*ema_fps + 0.2*fps_now)
             status_placeholder.markdown(
-                f'<div class="status-line"><b>FPS:</b> {ema_fps:0.1f} &nbsp;|&nbsp; '
-                f'<b>Latency:</b> {int(iter_time*1000)} ms</div>',
-                unsafe_allow_html=True
+                status_text.format(fps=ema_fps, latency=int(iter_time*1000)), unsafe_allow_html=True
             )
 
             # FPS limiter
@@ -159,6 +191,7 @@ if run:
             if delay:
                 time.sleep(delay)
     finally:
-        cap.release()
+        if cap is not None:
+            cap.release()
 
 st.markdown('</div>', unsafe_allow_html=True)

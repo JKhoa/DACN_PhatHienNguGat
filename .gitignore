@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env/
+.venv/
+ENV/
+venv/
+
+# VS Code / IDE settings
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Ultralytics/YOLO training outputs and caches
+**/runs/
+**/labels.cache
+
+# Datasets (keep YAML, ignore large train/val image directories)
+yolo-sleepy-allinone-final/datasets/sleepy_pose/train/
+yolo-sleepy-allinone-final/datasets/sleepy_pose/val/
+
+# Python caches
+**/__pycache__/
+
+# Logs
+*.log
