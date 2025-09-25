@@ -285,6 +285,12 @@ def main():
         ),
         help="Pose model weights",
     )
+    ap.add_argument(
+        "--model-version", 
+        choices=["v5", "v8", "v11"], 
+        default="v11",
+        help="YOLO model version to use (v5, v8, v11)"
+    )
     ap.add_argument("--cam", type=int, default=0)
     ap.add_argument("--res", default="1280x720", help="camera resolution WxH")
     ap.add_argument("--video", default=None, help="Path to input video file")
@@ -325,7 +331,57 @@ def main():
         except Exception:
             pass
 
-    model = YOLO(args.model)
+    # Auto-select model based on version if default model is not found
+    model_path = args.model
+    if not os.path.exists(model_path):
+        print(f"⚠️  Model không tìm thấy: {model_path}")
+        print(f"🔄 Tự động chọn model {args.model_version}...")
+        
+        if args.model_version == "v5":
+            # Try YOLOv5 models (available locally)
+            v5_models = [
+                "../yolov5/yolov5n.pt",
+                "yolov5nu.pt",  # YOLOv5n Ultralytics version
+                "yolov5n.pt"
+            ]
+            for v5_model in v5_models:
+                test_path = os.path.join(os.path.dirname(__file__), v5_model)
+                if os.path.exists(test_path):
+                    model_path = test_path
+                    break
+            else:
+                model_path = "yolov5nu.pt"  # YOLOv5n Ultralytics - will auto-download
+        elif args.model_version == "v8":
+            # Try YOLOv8 models
+            v8_models = [
+                "yolo8n-pose.pt",  
+                "yolov8n-pose.pt"
+            ]
+            for v8_model in v8_models:
+                test_path = os.path.join(os.path.dirname(__file__), v8_model)
+                if os.path.exists(test_path):
+                    model_path = test_path
+                    break
+            else:
+                model_path = "yolov8n-pose.pt"  # Will auto-download
+        else:  # v11 
+            # Try YOLOv11 models (default)
+            v11_models = [
+                "yolo11n-pose.pt",
+                "yolo11s-pose.pt", 
+                "yolo11m-pose.pt"
+            ]
+            for v11_model in v11_models:
+                test_path = os.path.join(os.path.dirname(__file__), v11_model)
+                if os.path.exists(test_path):
+                    model_path = test_path
+                    break
+            else:
+                model_path = "yolo11n-pose.pt"  # Will auto-download
+        
+        print(f"✅ Sử dụng model: {model_path}")
+
+    model = YOLO(model_path)
 
     # States for video mode
     SLEEP_FRAMES = 15

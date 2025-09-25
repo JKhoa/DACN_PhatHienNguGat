@@ -357,6 +357,12 @@ class SleepyWindow(QMainWindow):
         # UI setup
         self._build_ui()
 
+        # Show current model info on status bar
+        try:
+            self.sb_left.setText(f"Loaded: {os.path.basename(self.args.model)}")
+        except Exception:
+            self.sb_left.setText("Model loaded")
+
     def _safe_crop(self, img, x1, y1, x2, y2):
         h, w = img.shape[:2]
         x1i, y1i = max(0, int(x1)), max(0, int(y1))
@@ -436,11 +442,17 @@ class SleepyWindow(QMainWindow):
         self.logo_label.setStyleSheet("background: transparent;")
         self.header_title = QLabel("Sleepy Detection — Classroom Edition")
         self.header_title.setStyleSheet("font-size: 18px; font-weight: 600; color: #0f172a;")
+        # Quick model selector in header (synced with Settings)
+        self.header_model_combo = QComboBox()
+        for it in ["YOLOv11n-pose (default)", "YOLOv11s-pose", "YOLOv8n-pose", "YOLOv5n-pose", "Custom…"]:
+            self.header_model_combo.addItem(it)
+        self.header_model_combo.setCurrentText("YOLOv11n-pose (default)")
         self.btn_choose_logo = QPushButton("Chọn Logo…")
         self.btn_choose_logo.setCursor(Qt.PointingHandCursor)  # type: ignore[attr-defined]
         self.btn_choose_logo.clicked.connect(self.on_choose_logo)
         hbox.addWidget(self.logo_label, 0)
         hbox.addWidget(self.header_title, 1)
+        hbox.addWidget(self.header_model_combo, 0)
         hbox.addWidget(self.btn_choose_logo, 0)
 
         # Camera Tab
@@ -480,6 +492,23 @@ class SleepyWindow(QMainWindow):
 
         # Settings Tab
         set_tab = QWidget(); set_form = QFormLayout(set_tab)
+        # Model selection
+        self.model_combo = QComboBox()
+        # Presets
+        preset_items = [
+            "YOLOv11n-pose (default)",
+            "YOLOv11s-pose",
+            "YOLOv8n-pose",
+            "YOLOv5n-pose",
+            "Custom…",
+        ]
+        for it in preset_items:
+            self.model_combo.addItem(it)
+        self.model_combo.setCurrentText("YOLOv11n-pose (default)")
+        self.model_path_edit = QLineEdit(); self.model_path_edit.setText(self.args.model)
+        self.btn_browse_model = QPushButton("Browse…")
+        row_model = QHBoxLayout(); row_model.addWidget(self.model_combo); row_model.addWidget(self.model_path_edit); row_model.addWidget(self.btn_browse_model)
+        set_form.addRow("Pose model", row_model)
         self.conf_spin = QDoubleSpinBox(); self.conf_spin.setRange(0.05, 0.99); self.conf_spin.setSingleStep(0.05); self.conf_spin.setValue(self.args.conf)
         self.imgsz_spin = QSpinBox(); self.imgsz_spin.setRange(256, 1280); self.imgsz_spin.setSingleStep(32); self.imgsz_spin.setValue(self.args.imgsz)
         self.flip_combo = QComboBox(); self.flip_combo.addItems(["none", "h", "v", "180"]); self.flip_combo.setCurrentText(self.args.flip)
@@ -534,6 +563,80 @@ class SleepyWindow(QMainWindow):
         self.btn_connect.clicked.connect(self.on_start)
         self.btn_disconnect.clicked.connect(self.on_stop)
         self.btn_snapshot.clicked.connect(self.on_snapshot)
+        self.btn_browse_model.clicked.connect(self.on_browse_model)
+        self.model_combo.currentTextChanged.connect(self.on_model_preset_changed)
+        self.model_path_edit.editingFinished.connect(self.on_model_path_changed)
+        # Sync header and settings combos both ways without loops
+        self.header_model_combo.currentTextChanged.connect(self.on_header_model_changed)
+        self.model_combo.currentTextChanged.connect(self.on_settings_model_changed)
+
+    def _resolve_preset_path(self, preset_name: str) -> str:
+        # Returns a local path or model alias; auto-fallback to existing local weights when possible
+        base_dir = os.path.dirname(__file__)
+        # Default paths in repo root for v11
+        repo_root = os.path.abspath(os.path.join(base_dir, os.pardir))
+        v11n = os.path.join(repo_root, "yolo11n-pose.pt")
+        v11s = os.path.join(repo_root, "yolo11s-pose.pt")
+        v5n = os.path.join(repo_root, "yolov5n-pose.pt")
+        if preset_name.startswith("YOLOv11n") and os.path.exists(v11n):
+            return v11n
+        if preset_name.startswith("YOLOv11s") and os.path.exists(v11s):
+            return v11s
+        if preset_name.startswith("YOLOv8n"):
+            # Ultralytics will auto-download if not present
+            return "yolov8n-pose.pt"
+        if preset_name.startswith("YOLOv5n"):
+            # Check local file first, otherwise use Ultralytics alias
+            if os.path.exists(v5n):
+                return v5n
+            else:
+                return "yolov5n-pose.pt"
+        # Fallback to current text field
+        return self.model_path_edit.text().strip()
+
+    def _load_pose_model(self, path: str):
+        try:
+            self.pose_model = YOLO(path)
+            self.append_log(f"Đã tải model: {os.path.basename(path)}")
+            self.sb_left.setText(f"Loaded: {os.path.basename(path)}")
+        except Exception as e:
+            self.append_log(f"Lỗi tải model: {e}")
+
+    # Handlers: model selection
+    def on_browse_model(self):
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn weights .pt", "", "PyTorch Weights (*.pt)")
+        if p:
+            self.model_combo.setCurrentText("Custom…")
+            self.model_path_edit.setText(p)
+            self._load_pose_model(p)
+
+    def on_model_preset_changed(self, text: str):
+        if text == "Custom…":
+            return
+        path = self._resolve_preset_path(text)
+        if path:
+            self.model_path_edit.setText(path)
+            self._load_pose_model(path)
+
+    def on_header_model_changed(self, text: str):
+        # Update Settings combo without triggering loop
+        if self.model_combo.currentText() != text:
+            self.model_combo.blockSignals(True)
+            self.model_combo.setCurrentText(text)
+            self.model_combo.blockSignals(False)
+        self.on_model_preset_changed(text)
+
+    def on_settings_model_changed(self, text: str):
+        # Update header combo without triggering loop
+        if self.header_model_combo.currentText() != text:
+            self.header_model_combo.blockSignals(True)
+            self.header_model_combo.setCurrentText(text)
+            self.header_model_combo.blockSignals(False)
+
+    def on_model_path_changed(self):
+        p = self.model_path_edit.text().strip()
+        if p:
+            self._load_pose_model(p)
 
     # Theme & Chrome
     def _init_theme(self):
@@ -663,6 +766,18 @@ class SleepyWindow(QMainWindow):
         self.SLEEP_FRAMES = self.sleep_frames_spin.value()
         self.AWAKE_FRAMES = self.awake_frames_spin.value()
         self.reset_states()
+        # Ensure model follows current selection
+        preset = self.model_combo.currentText()
+        desired = self._resolve_preset_path(preset)
+        if desired and isinstance(getattr(self.pose_model, 'ckpt_path', None), str):
+            try:
+                cur = os.path.basename(getattr(self.pose_model, 'ckpt_path'))
+            except Exception:
+                cur = ""
+        else:
+            cur = ""
+        if desired and (not cur or os.path.basename(desired) != cur):
+            self._load_pose_model(desired)
         # Setup recording
         self.record_enabled = self.record_check.isChecked()
         if self.record_enabled:

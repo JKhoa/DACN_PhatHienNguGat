@@ -1,4 +1,52 @@
-# Nhật ký phát triển (Dev Log)
+# Nhật ký phát triển hệ thốn### Giai đoạn 3 ### Giai đoạn 4 — Xây dựng hệ ### Giai đoạn 6 — Bổ sung ### Giai đoạn 8 — Cải thiện giao diện hiển thị
+- Thu nhỏ và di chuyển bảng ghi chép sự kiện lên góc phải-trên với nền bán trong suốt, tự động thích ứng kích thước
+- Sắp xếp bảng thông tin mắt/ngáp ngay bên dưới bảng ghi chép, tránh che khuất khung hình chính
+
+### Giai đoạn 9 — Cải thiện chuyển đổi trạng thái "Thức dậy"
+- Áp dụng kỹ thuật hysteresis với hai ngưỡng khác nhau:
+  - Chuyển vào trạng thái "Ngủ gật/Gục xuống" khi có ≥ 15 khung hình liên tiếp phát hiện buồn ngủ
+  - Trở về trạng thái "Bình thường" khi có ≥ 5 khung hình liên tiếp không phát hiện buồn ngủ
+- **Kết quả đạt được**: Giao diện chuyển đổi trạng thái nhanh chóng và ổn định khi người dùng ngồi dậy lý ảnh tĩnh và tối ưu hóa mã nguồn
+- Thêm tham số dòng lệnh `--image` để kiểm thử hệ thống trên một ảnh tĩnh
+- Dọn dẹp file `standalone_app.py` khỏi các đoạn mã trùng lặp sau quá trình tái cấu trúc; sửa lỗi codec FOURCC MJPG
+- Xác thực hoạt động của giao diện dòng lệnh `--help`, chế độ xử lý ảnh và chế độ webcam
+
+### Giai đoạn 7 — Tích hợp công nghệ phát hiện buồn ngủ nâng cao (phân tích mắt và ngáp)
+- Thêm tùy chọn kích hoạt pipeline xử lý bổ sung (thông qua `--enable-eyes`):
+  - Sử dụng MediaPipe FaceMesh để cắt vùng quan tâm của mắt và miệng
+  - Hai mô hình YOLO bổ sung: phân loại mắt (mở/nhắm) và phân loại ngáp (có ngáp/không ngáp)
+  - Hệ thống đếm: số lần chớp mắt, thời gian nhắm mắt liên tục (microsleeps), số lần ngáp, thời lượng ngáp
+  - Cảnh báo khi thời gian nhắm mắt ≥ 3 giây hoặc thời lượng ngáp ≥ 7 giây (có thể tùy chỉnh)
+- Bổ sung các tham số dòng lệnh: `--eye-weights`, `--yawn-weights`, `--secondary-interval`, `--microsleep-thresh`, `--yawn-thresh`
+- Bảng thông tin bổ sung được đặt ở bên phải màn hình, dưới phần ghi chép sự kiệni và ghi chép
+- Tạo hệ thống trạng thái riêng cho từng người: `sleep_states` (trạng thái ngủ), `sleep_status` (tình trạng hiện tại), thời điểm bắt đầu ngủ
+- Ghi lại các sự kiện "Ngủ gật" và "Thức dậy" vào bảng thông tin
+- Tính toán và hiển thị thống kê "Thời gian ngủ gật lâu nhất"
+- Tạo nhãn hiển thị bằng tiếng Việt rõ ràng, đặt gần vị trí mũi của từng người
+
+### Giai đoạn 5 — Chuẩn bị dữ liệu và huấn luyện mô hình
+- Tạo cấu trúc dữ liệu `datasets/sleepy_pose` (ảnh huấn luyện/kiểm tra và nhãn tương ứng)
+- Cập nhật file cấu hình YAML:
+  - `names = {0: binhthuong, 1: ngugat, 2: gucxuongban}` (tên các trạng thái)
+  - `kpt_shape = [17,3]` (17 điểm đặc trưng theo chuẩn COCO), đường dẫn dữ liệu huấn luyện/kiểm tra
+- Phát triển công cụ gán nhãn tự động `tools/auto_label_pose.py`:
+  - Chạy suy luận mô hình và áp dụng thuật toán để tạo nhãn YOLO-Pose
+  - Tự động chia dữ liệu thành tập huấn luyện và kiểm tra
+- Tạo hướng dẫn huấn luyện sử dụng framework Ultralytics. Lưu ý: gặp lỗi lần đầu do thư mục ảnh trống → đã bổ sung hướng dẫn thu thập dữ liệu và gán nhãn tự độnguật toán phát hiện "Ngủ gật" và "Gục xuống bàn"
+- Sử dụng các điểm đặc trưng của mũi và vai từ YOLO-Pose để tính toán:
+  - Góc nghiêng đầu so với trục thẳng đứng (từ mũi đến cổ) → phát hiện việc cúi đầu hoặc ngả nghiêng
+  - Mức độ đầu rơi xuống so với vai, tính theo tỷ lệ ảnh và khoảng cách giữa hai vai
+- Thiết lập các ngưỡng nhạy cảm (có thể điều chỉnh):
+  - Gục xuống bàn: tỷ lệ rơi theo chiều cao > 0.22 hoặc tỷ lệ rơi theo vai > 0.65
+  - Ngủ gật nhẹ: góc nghiêng > 25° hoặc tỷ lệ rơi theo chiều cao > 0.12 hoặc tỷ lệ rơi theo vai > 0.35
+- Áp dụng kỹ thuật khử nhiễu (15 khung hình liên tiếp) để tránh hiệu ứng nhấp nháy không mong muốniện ngủ gật
+
+Tài liệu này ghi lại toàn bộ quá trình phát triển dự án phát hiện ngủ gật sử dụng công nghệ YOLO từ lúc bắt đầu đến hiện tại (cập nhật: tháng 9/2025).
+
+## Mục tiêu của dự án
+- Phát hiện tình trạng buồn ngủ và ngủ gật của con người trong thời gian thực qua camera
+- Hỗ trợ nhận diện cả hai trường hợp: ngủ gật nhẹ và "gục xuống bàn" 
+- Tạo giao diện hiển thị bằng tiếng Việt dễ đọc, có ghi chép sự kiện, hiển thị tốc độ xử lý và thống kê thời gian ngủý phát triển (Dev Log)
 
 Tài liệu ghi chép tiến độ và các quyết định kỹ thuật của dự án YOLO-Sleepy từ lúc bắt đầu đến hiện tại (cập nhật: 2025-09-09).
 
@@ -7,17 +55,17 @@ Tài liệu ghi chép tiến độ và các quyết định kỹ thuật của d
 - Hỗ trợ cả trường hợp “gục xuống bàn”.
 - Giao diện overlay tiếng Việt, dễ đọc; có log, FPS, và thống kê thời lượng.
 
-## Dòng thời gian và mốc chính
+## Các giai đoạn phát triển chính
 
-### Giai đoạn 1 — Khởi động & thử nghiệm web (Streamlit)
-- Xây dựng bản thử nghiệm chạy mô hình YOLO Pose trên web.
-- Vấn đề: giật/lag mạnh khi stream video → không phù hợp cho thời gian thực.
+### Giai đoạn 1 — Bắt đầu với ứng dụng web
+- Xây dựng phiên bản thử nghiệm đầu tiên sử dụng mô hình YOLO để phát hiện tư thế trên nền tảng web (Streamlit)
+- **Vấn đề gặp phải**: Video bị giật và chậm trễ nghiêm trọng → không đáp ứng được yêu cầu xử lý thời gian thực
 
-### Giai đoạn 2 — Chuyển sang ứng dụng Desktop (OpenCV)
-- Viết ứng dụng OpenCV thuần (Python) để cải thiện độ trễ.
-- Xử lý hiển thị Unicode tiếng Việt bằng Pillow (PIL) → hàm `draw_text_unicode`.
-- Thêm đa backend camera (CAP_DSHOW, CAP_MSMF) và tùy chọn MJPG để cải thiện FPS.
-- Thêm ước lượng FPS (EMA) để hiển thị ổn định.
+### Giai đoạn 2 — Chuyển sang ứng dụng máy tính để bàn
+- Phát triển ứng dụng sử dụng OpenCV thuần túy bằng Python để giảm độ trễ
+- Giải quyết vấn đề hiển thị tiếng Việt có dấu bằng thư viện Pillow (PIL) → tạo hàm `draw_text_unicode`
+- Bổ sung nhiều phương thức kết nối camera (CAP_DSHOW, CAP_MSMF) và định dạng MJPG để tăng tốc độ khung hình
+- Thêm tính năng ước lượng tốc độ khung hình (EMA) để hiển thị ổn định
 
 ### Giai đoạn 3 — Heuristics Pose cho “Ngủ gật” và “Gục xuống bàn”
 - Trích xuất keypoint mũi + vai (YOLO-Pose) để tính:
@@ -68,47 +116,47 @@ Tài liệu ghi chép tiến độ và các quyết định kỹ thuật của d
   - Thoát về “Bình thường” khi `AWAKE_FRAMES ≥ 5` khung liên tiếp bình thường.
 - Kết quả: overlay đổi trạng thái nhanh và ổn định khi ngồi dậy.
 
-## Tệp & thư mục quan trọng
-- `yolo-sleepy-allinone-final/standalone_app.py`: Ứng dụng desktop chính (webcam/ảnh tĩnh), overlay VN, heuristics pose, pipeline mắt/ngáp (tùy chọn), log & thống kê.
-- `yolo-sleepy-allinone-final/datasets/sleepy_pose/sleepy.yaml`: Cấu hình dataset 3 lớp cho YOLO-Pose.
-- `yolo-sleepy-allinone-final/tools/auto_label_pose.py`: Gán nhãn bán tự động từ ảnh/video.
-- `real-time-drowsy-driving-detection/`: Tham chiếu mô hình mắt/ngáp và logic drowsiness phụ.
+## Các tệp và thư mục chính
+- `yolo-sleepy-allinone-final/standalone_app.py`: Ứng dụng chính cho máy tính để bàn (hỗ trợ webcam/ảnh tĩnh), hiển thị tiếng Việt, thuật toán phát hiện tư thế, pipeline phân tích mắt/ngáp (tùy chọn), ghi chép và thống kê
+- `yolo-sleepy-allinone-final/datasets/sleepy_pose/sleepy.yaml`: File cấu hình bộ dữ liệu 3 trạng thái cho YOLO-Pose
+- `yolo-sleepy-allinone-final/tools/auto_label_pose.py`: Công cụ gán nhãn bán tự động từ ảnh/video
+- `real-time-drowsy-driving-detection/`: Thư mục tham khảo chứa các mô hình phân tích mắt/ngáp và logic phát hiện buồn ngủ bổ sung
 
-## Hiệu năng (tham chiếu nhanh)
-- YOLO11n-Pose, imgsz ~960: thời gian suy luận ~85–120 ms/khung trên CPU → ~8–11 FPS (quan sát từ log và HUD).
-- Có thể tăng FPS bằng: MJPG camera, giảm imgsz, dùng GPU/TensorRT/ONNX, hoặc đổi kiến trúc nhỏ hơn.
+## Hiệu suất hệ thống (tham khảo nhanh)
+- YOLO11n-Pose với kích thước ảnh ~960: thời gian xử lý ~85–120 ms cho mỗi khung hình trên CPU → đạt ~8–11 FPS (theo quan sát từ log và giao diện)
+- Có thể tăng tốc độ khung hình bằng cách: sử dụng định dạng MJPG cho camera, giảm kích thước ảnh đầu vào, sử dụng GPU/TensorRT/ONNX, hoặc chuyển sang mô hình nhỏ hơn
 
-## So sánh mô hình YOLO (Pose) — số liệu đo trên máy hiện tại (CPU)
-- Bối cảnh đo: Windows, CPU, 1 khung hình webcam (480×640), imgsz=640, Ultralytics YOLO v8.3.x.
-- Script đo: `yolo-sleepy-allinone-final/tools/benchmark_pose_models.py` (đã thêm vào repo).
+## So sánh các mô hình YOLO (Phát hiện tư thế) — Số liệu đo trên hệ thống hiện tại (CPU)
+- **Điều kiện đo**: Windows, chỉ CPU, 1 khung hình từ webcam (480×640 pixel), kích thước ảnh đầu vào=640, Ultralytics YOLO phiên bản 8.3.x
+- **Công cụ đo**: Script `yolo-sleepy-allinone-final/tools/benchmark_pose_models.py` (đã có trong kho mã nguồn)
 
-Kết quả (FPS cao hơn là tốt hơn):
-- yolo11n-pose.pt: 6.02 FPS (15 vòng, tổng 2.49s)
-- yolo11n.pt (detector thường, không pose): 4.26 FPS (15 vòng, tổng 3.52s)
-- yolo11s-pose.pt: 2.93 FPS (15 vòng, tổng 5.11s)
-- yolo11m-pose.pt: 1.28 FPS (15 vòng, tổng 11.71s)
+**Kết quả đo đạc** (FPS cao hơn = hiệu suất tốt hơn):
+- yolo11n-pose.pt: 6.02 FPS (15 lần chạy, tổng thời gian 2.49 giây)
+- yolo11n.pt (mô hình phát hiện thông thường, không có tư thế): 4.26 FPS (15 lần chạy, tổng thời gian 3.52 giây)
+- yolo11s-pose.pt: 2.93 FPS (15 lần chạy, tổng thời gian 5.11 giây)
+- yolo11m-pose.pt: 1.28 FPS (15 lần chạy, tổng thời gian 11.71 giây)
 
-Nhận xét nhanh:
-- yolo11n-pose nhanh nhất trên CPU → phù hợp realtime hơn. yolo11s/m-pose chậm đáng kể trên CPU.
-- Mô hình detector thường (yolo11n.pt) không xuất keypoints, nên không dùng trực tiếp cho heuristics pose của ứng dụng.
-- FPS trong app sẽ thấp hơn đôi chút do overlay, tracking, và pipeline phụ (mắt/ngáp).
+**Nhận xét tổng quan:**
+- yolo11n-pose có tốc độ nhanh nhất trên CPU → phù hợp cho ứng dụng thời gian thực. Các mô hình yolo11s/m-pose chạy chậm đáng kể trên CPU
+- Mô hình phát hiện thông thường (yolo11n.pt) không tạo ra các điểm đặc trưng tư thế, nên không sử dụng được cho thuật toán phân tích tư thế của ứng dụng
+- Tốc độ FPS trong ứng dụng thực tế sẽ thấp hơn một chút do có thêm giao diện hiển thị, theo dõi đối tượng, và pipeline phân tích mắt/ngáp
 
-Khuyến nghị lựa chọn mô hình:
-- CPU-only: dùng yolo11n-pose.pt để đạt FPS tốt; kết hợp heuristic (góc/độ rơi/độ rơi so với bbox) và hysteresis như hiện tại.
-- Có GPU (CUDA): có thể nâng lên yolo11s-pose.pt để tăng độ chính xác pose, chấp nhận giảm FPS; tinh chỉnh imgsz để cân bằng.
-- Trường hợp nhiều người cùng lúc: ưu tiên model nhanh (n-pose) + tracking (đã thêm) để giữ ổn định ID và overlay rõ ràng.
+**Khuyến nghị lựa chọn mô hình:**
+- **Chỉ có CPU**: sử dụng yolo11n-pose.pt để đạt FPS tốt; kết hợp với thuật toán phân tích (góc nghiêng/mức độ rơi đầu/tỷ lệ rơi so với khung) và kỹ thuật hysteresis như hiện tại
+- **Có GPU (CUDA)**: có thể nâng cấp lên yolo11s-pose.pt để tăng độ chính xác phát hiện tư thế, chấp nhận giảm FPS; điều chỉnh kích thước ảnh để cân bằng
+- **Trường hợp nhiều người cùng lúc**: ưu tiên mô hình nhanh (n-pose) kết hợp với theo dõi đối tượng (đã được bổ sung) để giữ ổn định ID và hiển thị rõ ràng
 
-Tái lập benchmark (tùy chọn):
+**Cách tái lập benchmark** (nếu cần):
 ```powershell
 cd d:\Study\DoAnChuyenNganh\Yolo-v11-testing\yolo-sleepy-allinone-final\tools
 python benchmark_pose_models.py --models yolo11n-pose.pt "yolo11n.pt" "yolo11s-pose.pt" "yolo11m-pose.pt" --iters 15 --imgsz 640
 ```
 
-## Phụ: Kết quả huấn luyện mô hình phụ (mắt/ngáp) hiện có
-- Eye (Open/Close) — epoch 10 (val): precision ~0.73, recall ~0.86, mAP50 ~0.78, mAP50-95 ~0.73.
-- Yawn (Yawn/No-Yawn) — epoch 10 (val): precision ~0.77, recall ~0.73, mAP50 ~0.79, mAP50-95 ~0.59.
+## Phụ lục: Kết quả huấn luyện các mô hình bổ sung (phân tích mắt/ngáp)
+- **Mô hình phân loại mắt** (Mở/Nhắm) — epoch 10 (kiểm tra): độ chính xác ~0.73, độ nhạy ~0.86, mAP50 ~0.78, mAP50-95 ~0.73
+- **Mô hình phân loại ngáp** (Có ngáp/Không ngáp) — epoch 10 (kiểm tra): độ chính xác ~0.77, độ nhạy ~0.73, mAP50 ~0.79, mAP50-95 ~0.59
 
-Gợi ý: tiếp tục thu thập và cân bằng dữ liệu, đặc biệt các ca khó (nhìn xuống, ánh sáng yếu, che khuất) để cải thiện độ tin cậy.
+**Gợi ý cải thiện**: tiếp tục thu thập và cân bằng dữ liệu, đặc biệt tập trung vào các trường hợp khó (nhìn xuống, ánh sáng yếu, bị che khuất) để nâng cao độ tin cậy của hệ thống
 
 ## Tổng quan lý thuyết YOLO (tóm tắt)
 - YOLO (You Only Look Once) là họ mô hình phát hiện đối tượng “một bước” (single-stage):
@@ -151,18 +199,20 @@ Ghi chú:
 - Số FPS đo được bằng `tools/benchmark_pose_models.py` trên CPU máy hiện tại, imgsz=640, 15 vòng; FPS thực tế trong ứng dụng thấp hơn chút do overlay, tracking và pipeline mắt/ngáp.
 - Có thể tăng FPS bằng cách giảm imgsz (ví dụ 512/480), bật MJPG, hoặc sử dụng GPU/ONNX/TensorRT.
 
-## So sánh YOLOv3 vs YOLOv5 vs YOLOv11 cho nhận diện ngủ gật (dựa trên pose)
+## So sánh YOLOv3 vs YOLOv5 vs YOLOv8 vs YOLOv11 cho nhận diện ngủ gật (dựa trên pose)
 
 | Phiên bản | Năm | Pose gốc | Hệ sinh thái/Train | Triển khai | Phù hợp CPU | Liên quan bài toán (pose/keypoints) | Khi nên dùng |
 |---|---|---|---|---|---|---|---|
 | YOLOv3 | 2018 | Không (cần repo/phụ trợ) | Darknet cổ điển; training ít thuận tiện hơn PyTorch | Darknet/ONNX (chuyển đổi) | Trung bình/Chậm trên CPU hiện đại | Thiếu pose gốc → không trực tiếp tính góc/độ rơi đầu | Chỉ khi hệ thống legacy yêu cầu Darknet |
-| YOLOv5 | 2020 | Có (v5-pose) | PyTorch/Ultralytics, dễ train/finetune, export tiện | ONNX/TensorRT/CoreML | Khá tốt trên CPU | Có keypoints; đủ dùng nếu phần cứng yếu và cần ổn định | Biên/nhúng yếu, hoặc cần tương thích lâu năm |
-| YOLOv11 | 2024 | Có (v11-pose) | PyTorch/Ultralytics thế hệ mới, tối ưu hơn | ONNX/TensorRT/OpenVINO… | Tốt nhất (cân bằng tốc độ/độ chính xác) | Keypoints tốt hơn, ổn định; phù hợp drowsiness realtime | Lựa chọn mặc định hiện tại |
+| YOLOv5 | 2020 | Có (v5-pose) | PyTorch/Ultralytics, dễ train/finetune, export tiện | ONNX/TensorRT/CoreML | Tốt trên CPU cũ | Có keypoints; đủ dùng nếu phần cứng yếu và cần ổn định | Biên/nhúng yếu, hoặc cần tương thích lâu năm |
+| YOLOv8 | 2023 | Có (v8-pose) | PyTorch/Ultralytics thế hệ mới, cải tiến architecture | ONNX/TensorRT/OpenVINO… | Tốt trên CPU/GPU | Keypoints cải thiện, tốc độ ổn định | Cân bằng giữa hiệu suất và tương thích |
+| YOLOv11 | 2024 | Có (v11-pose) | PyTorch/Ultralytics thế hệ mới nhất, tối ưu hơn | ONNX/TensorRT/OpenVINO… | Tốt nhất (cân bằng tốc độ/độ chính xác) | Keypoints tốt nhất, ổn định; phù hợp drowsiness realtime | Lựa chọn mặc định hiện tại |
 
 Kết luận nhanh cho ứng dụng ngủ gật:
-- Ưu tiên YOLOv11-pose (n/s tuỳ phần cứng) vì: có keypoints ổn định, tốc độ/độ chính xác tốt, hệ công cụ Ultralytics mới nhất.
-- Chỉ cân nhắc YOLOv5-pose khi cần export/triển khai trên phần cứng biên rất hạn chế hoặc phải giữ tương thích cũ.
-- Tránh YOLOv3 cho bài toán pose trừ khi ràng buộc legacy, vì thiếu pose gốc và hệ sinh thái train/triển khai kém linh hoạt hơn.
+- **Ưu tiên cao nhất**: YOLOv11-pose (n/s tuỳ phần cứng) vì có keypoints ổn định nhất, tốc độ/độ chính xác tốt, hệ công cụ Ultralytics mới nhất.
+- **Lựa chọn thứ hai**: YOLOv8-pose khi cần cân bằng hiệu suất và tương thích, hoặc khi YOLOv11 chưa ổn định trên hệ thống cụ thể.
+- **Phần cứng yếu**: YOLOv5-pose khi cần export/triển khai trên phần cứng biên rất hạn chế hoặc phải giữ tương thích cũ.
+- **Tránh**: YOLOv3 cho bài toán pose trừ khi ràng buộc legacy, vì thiếu pose gốc và hệ sinh thái train/triển khai kém linh hoạt hơn.
 
 ## Nhật ký huấn luyện gần đây (2025-09-09)
 
@@ -259,6 +309,75 @@ Các thay đổi chức năng vừa thực hiện để đồng bộ hóa cấu 
 - Gộp tín hiệu: pose + mắt/ngáp → bộ phân loại trạng thái cuối cùng mạnh hơn.
 - Tối ưu suy luận: FP16/GPU/TensorRT/ONNX, cân chỉnh `imgsz`, thay model nhẹ.
 - Đóng gói: script khởi chạy, cấu hình .bat, hoặc gói app (PyInstaller) để dùng nhanh.
+
+## Cập nhật 2025-09-24 — Chọn mô hình (YOLOv11/YOLOv8/YOLOv5/Custom) trong GUI
+
+- Bổ sung selector mô hình trong `yolo-sleepy-allinone-final/gui_app.py` (tab Settings):
+  - Preset: YOLOv11n-pose (mặc định), YOLOv11s-pose, YOLOv8n-pose, YOLOv5n-pose, và Custom…
+  - Đường dẫn mặc định: tự dò `yolo11n-pose.pt`/`yolo11s-pose.pt`/`yolov5n-pose.pt` ở thư mục gốc dự án; v8/v5 dùng alias `yolov8n-pose.pt`/`yolov5n-pose.pt` (Ultralytics sẽ tự tải nếu thiếu).
+  - Nút Browse… để chọn `.pt` bất kỳ (bao gồm các phiên bản YOLO khác).
+- Tải nóng mô hình theo lựa chọn, không cần khởi động lại ứng dụng; hiển thị tên mô hình đang dùng ở status bar và ghi log khi đổi.
+- Gợi ý so sánh nhanh:
+  - Chất lượng: YOLOv11 Pose ≥ YOLOv8 Pose ≥ YOLOv5 Pose (tuỳ dữ liệu/weights).
+  - Tốc độ: YOLOv5n-pose thường nhẹ nhất trên CPU cũ; YOLOv8n-pose cân bằng; YOLOv11n-pose tối ưu nhất.
+  - Khuyến nghị: ưu tiên YOLOv11n/s-pose cho hiệu suất tốt nhất; dùng YOLOv5n-pose khi phần cứng rất yếu hoặc cần tương thích cũ.
+
+## Cập nhật 2025-09-24 — Huấn luyện mô hình với dữ liệu mới (sleepy_pose_new_data)
+
+### Thông tin huấn luyện:
+- **Dữ liệu**: 25 ảnh từ thư mục `data_raw` được tự động gán nhãn bởi `auto_label_pose.py`
+- **Tổng số nhãn**: 64 annotations được tạo ra từ 25 ảnh đầu vào
+- **Phân chia dữ liệu**: 
+  - Train: 22 ảnh (88%)
+  - Validation: 3 ảnh (12%)
+- **Mô hình base**: YOLOv11n-pose.pt (2.87M parameters, 196 layers)
+- **Cấu hình training**:
+  - Epochs: 50
+  - Batch size: 4
+  - Image size: 640x640
+  - Optimizer: AdamW (lr=0.001429, momentum=0.9)
+  - Device: CPU
+  - Patience: 20 (early stopping)
+
+### Kết quả huấn luyện:
+- **Thời gian**: ~395 giây (6.6 phút) cho 50 epochs
+- **Tốc độ**: ~7.9 giây/epoch trung bình
+- **Chuyển giao học习 (Transfer Learning)**: 535/541 items từ pretrained weights
+
+#### Metrics cuối cùng (Epoch 50):
+- **Box Detection**:
+  - Precision: 98.70%
+  - Recall: 100%
+  - mAP50: 99.50%
+  - mAP50-95: 92.93%
+- **Pose Estimation**:
+  - Precision: 98.70%
+  - Recall: 100%
+  - mAP50: 44.25%
+  - mAP50-95: 44.25%
+- **Loss Values**:
+  - Box Loss: 0.584
+  - Pose Loss: 3.003
+  - Keypoint Object Loss: 0.329
+  - Classification Loss: 1.092
+  - DFL Loss: 1.089
+
+#### Xu hướng cải thiện:
+- **Box mAP50**: Tăng từ 47.4% (epoch 1) → 99.5% (epoch 50)
+- **Pose mAP50**: Dao động và ổn định ở ~44% từ epoch 15 trở đi
+- **Training Loss**: Giảm dần và ổn định, không có dấu hiệu overfitting
+
+### Tệp kết quả:
+- **Weights**: `runs/pose-train/sleepy_pose_new_data/weights/best.pt`
+- **Kết quả đầy đủ**: `runs/pose-train/sleepy_pose_new_data/results.csv`
+- **Biểu đồ**: Training curves, confusion matrix, PR curves đã được tạo tự động
+
+### Nhận xét:
+- Mô hình đạt hiệu suất box detection rất cao (99.5% mAP50)
+- Pose estimation đạt mức trung bình (44.25% mAP50), phù hợp cho ứng dụng thời gian thực
+- Training ổn định, không có overfitting
+- Tốc độ training nhanh nhờ pretrained weights và dataset nhỏ gọn
+- Model weights đã sẵn sàng cho việc tích hợp vào ứng dụng
 
 ---
 Nếu cần log chi tiết hơn theo ngày/commit, có thể bổ sung bảng mốc với ngày-giờ và thay đổi file cụ thể (CHANGELOG).
@@ -398,3 +517,51 @@ Nếu cần log chi tiết hơn theo ngày/commit, có thể bổ sung bảng m�
 - Tuần 2: gán nhãn & QC; train baseline (v11n-pose @640); đánh giá bước đầu.
 - Tuần 3: mở rộng dữ liệu ca khó; tinh chỉnh ngưỡng/augment; thử v11s-pose (GPU nếu có).
 - Tuần 4: tổng hợp số liệu mAP/PR/RC/FPS; hoàn thiện báo cáo PDF + demo GUI.
+
+---
+
+## 📊 Cập Nhật Mới Nhất (Phase 5 - Automated Collection Tools)
+
+### ✅ Hoàn thành Phase 5: Công Cụ Thu Thập Tự Động
+**Ngày**: 2025-01-08
+
+#### Công cụ được tạo:
+1. **`download_images.py`**: Script tải ảnh từ URLs miễn phí
+   - Hỗ trợ Pexels, Unsplash, Pixabay URLs
+   - Retry logic và error handling  
+   - Hướng dẫn chi tiết lấy URL trực tiếp
+   - Validation kích thước file
+
+2. **`collect_data.py` nâng cấp**: Công cụ tổng hợp hoàn chỉnh
+   - `--download`: Tích hợp download_images.py
+   - `--full-pipeline`: Quy trình hoàn chỉnh tự động
+   - Thống kê chi tiết theo nguồn ảnh
+   - Hỗ trợ video frame extraction
+
+3. **Tài liệu hướng dẫn**:
+   - `README_DATA_COLLECTION.md`: Hướng dẫn sử dụng đầy đủ
+   - `EXAMPLE_URLS.md`: Ví dụ cụ thể và templates
+   - Integration với DATA_COLLECTION_GUIDE.md hiện có
+
+#### Workflow được tối ưu:
+```bash
+# Quy trình thu thập hoàn chỉnh
+python collect_data.py --full-pipeline
+
+# Hoặc từng bước:
+python download_images.py          # Tải ảnh từ URLs
+python collect_data.py --copy      # Sao chép về data_raw  
+python collect_data.py --auto-label # Tạo labels tự động
+python collect_data.py --stats     # Xem thống kê
+```
+
+#### Tiến độ dataset:
+- **Hiện tại**: 27 ảnh (19 gốc + 8 khác)
+- **Mục tiêu**: 300-400 ảnh
+- **Cần thêm**: ~273-373 ảnh
+
+#### Next Steps:
+1. Cấu hình URLs thực tế vào download_images.py
+2. Thu thập batch đầu tiên 50-100 ảnh
+3. Kiểm tra chất lượng auto-labeling
+4. Retrain model với dataset mở rộng

@@ -1,0 +1,30 @@
+flip_idx:
+- 0
+- 2
+- 1
+- 4
+- 3
+- 6
+- 5
+- 8
+- 7
+- 10
+- 9
+- 12
+- 11
+- 14
+- 13
+- 16
+- 15
+kpt_shape:
+- 17
+- 3
+names:
+- binhthuong
+- ngugat
+- gucxuongban
+nc: 3
+path: D:\Study\DoAnChuyenNganh\DACN_PhatHienNguGat\yolo-sleepy-allinone-final\datasets\sleepy_pose_yolov5
+test: test/images
+train: train/images
+val: val/images

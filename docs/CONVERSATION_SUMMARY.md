@@ -1,4 +1,24 @@
-# Conversation Summary (2025-09-10)
+# Tóm tắt quá trình phát triển (tháng 9/2025)
+
+## 1) Tổng quan dự án
+
+- *## 8) Các bước tiếp theo
+
+- **Thêm cài đặt GUI cho**:
+  - Ngưỡng vi giấc ngủ (microsleep threshold)
+  - Ngưỡng ngáp (yawn threshold)  
+  - Khoảng thời gian thứ cấp cho pipeline mắt/ngáp
+- **Lưu trữ cài đặt** (JSON/YAML) và mở rộng kiểm tra trên các thiết lập camera/trọng số khác nhau
+
+---
+
+**Tóm tắt**: Ứng dụng GUI đã được ổn định hóa, và pipeline phân tích khuôn mặt/mắt/ngáp toàn diện của CLI (với bộ đếm và lớp phủ) đã được tích hợp vào `gui_app.py`. Các kiểm tra tĩnh đều pass và việc khởi chạy nền thành công; điều khiển trải nghiệm người dùng và lưu trữ là những cải tiến trọng tâm tiếp theo.hính của phiên làm việc:**
+  - Tiếp tục cải thiện giao diện đồ họa của người dùng (GUI)
+  - Chuyển các tính năng phân tích khuôn mặt/mắt/ngáp từ giao diện dòng lệnh vào giao diện chính
+  - Viết lại tài liệu tiến độ theo cấu trúc phù hợp với Word
+  - Cung cấp bản tóm tắt chi tiết, định dạng cải tiến tập trung vào các hoạt động gần đây
+- **Quy trình làm việc:**
+  - Sửa lỗi khởi tạo GUI và vấn đề thụt lề → tích hợp FaceMesh + logic mắt/ngáp → xác thực → cập nhật tài liệu → tóm tắtion Summary (2025-09-10)
 
 ## 1) Overview
 
@@ -10,59 +30,60 @@
 - Session flow:
   - Fix GUI init/indentation issues → integrate FaceMesh + eye/yawn logic → validate → update docs → summarize.
 
-## 2) Technical foundation
+## 2) Nền tảng kỹ thuật
 
-- Computer vision: OpenCV (capture/render), Ultralytics YOLO (pose + detections), MediaPipe FaceMesh.
-- GUI: PyQt5 (QMainWindow, toolbar, status bar, split layout, stylesheets).
-- Tracking/state: IoU-based SimpleTracker; per-ID hysteresis (SLEEP_FRAMES/AWAKE_FRAMES); event logs.
-- Overlay: Unicode drawing via Pillow (ImageFont/ImageDraw); side info panel.
-- Performance: MJPG camera, FPS EMA; periodic execution of eye/yawn pipeline to save compute.
+- **Thị giác máy tính**: OpenCV (thu nhận và hiển thị video), Ultralytics YOLO (phát hiện tư thế + đối tượng), MediaPipe FaceMesh (phân tích khuôn mặt)
+- **Giao diện người dùng**: PyQt5 (cửa sổ chính, thanh công cụ, thanh trạng thái, bố cục chia đôi, định dạng giao diện)
+- **Theo dõi và trạng thái**: Bộ theo dõi đơn giản dựa trên IoU; hysteresis theo ID (SLEEP_FRAMES/AWAKE_FRAMES); nhật ký sự kiện
+- **Hiển thị**: Vẽ Unicode thông qua Pillow (ImageFont/ImageDraw); bảng thông tin bên cạnh
+- **Hiệu suất**: Camera MJPG, ước lượng FPS EMA; thực thi định kỳ pipeline mắt/ngáp để tiết kiệm tính toán
 
-## 3) Codebase status
+## 3) Trạng thái mã nguồn
 
-- File: `yolo-sleepy-allinone-final/gui_app.py`
-  - Fixed indentation and removed problematic inline type annotations in `__init__`.
-  - Added helpers: `draw_panel`, `_safe_crop`, `_predict_eye`, `_predict_yawn`.
-  - Added lazy init for FaceMesh and YOLO eye/yawn models; periodic execution using `secondary_interval`.
-  - Counters and state: `blinks`, `microsleeps`, `yawns`, `yawn_duration`; booleans for left/right eye closed and yawn-in-progress.
-  - Extended `process_frame_once` to perform pose classification, tracking/hysteresis, optional eye/yawn detection, and draw a side info panel with warnings.
-  - Recording support retained (`_ensure_writer`, `_write_frame`, `_release_writer`).
-- Reference: `yolo-sleepy-allinone-final/standalone_app.py`
-  - Served as blueprint for the comprehensive face/eye/yawn logic and thresholds.
+- **File chính**: `yolo-sleepy-allinone-final/gui_app.py`
+  - Sửa lỗi thụt lề và loại bỏ các chú thích kiểu dữ liệu inline có vấn đề trong `__init__`
+  - Thêm các hàm hỗ trợ: `draw_panel` (vẽ bảng thông tin), `_safe_crop` (cắt ảnh an toàn), `_predict_eye` (dự đoán trạng thái mắt), `_predict_yawn` (dự đoán ngáp)
+  - Thêm khởi tạo lazy cho FaceMesh và các mô hình YOLO phân tích mắt/ngáp; thực thi định kỳ sử dụng `secondary_interval`
+  - Bộ đếm và trạng thái: `blinks` (số lần chớp mắt), `microsleeps` (vi giấc ngủ), `yawns` (số lần ngáp), `yawn_duration` (thời lượng ngáp); biến boolean cho trạng thái mắt trái/phải nhắm và đang ngáp
+  - Mở rộng `process_frame_once` để thực hiện phân loại tư thế, theo dõi/hysteresis, phát hiện mắt/ngáp tùy chọn, và vẽ bảng thông tin bên cạnh với cảnh báo
+  - Giữ lại hỗ trợ ghi video (`_ensure_writer`, `_write_frame`, `_release_writer`)
+  - **Mới**: Bộ chọn mô hình trong tab Cài đặt để chuyển đổi giữa YOLOv11n/s-pose, YOLOv8n-pose, hoặc file `.pt` tùy chỉnh; tải lại động không cần khởi động lại
+- **File tham khảo**: `yolo-sleepy-allinone-final/standalone_app.py`
+  - Được sử dụng làm bản thiết kế cho logic phân tích khuôn mặt/mắt/ngáp toàn diện và các ngưỡng
 
-## 4) Problems encountered → solutions
+## 4) Các vấn đề gặp phải và giải pháp
 
-- Mis-indented blocks and dedented lines inside `__init__` caused "self is not defined" and "Unexpected indentation".
-  - Solution: Re-indent correctly within the class; ensure all assignments live inside `__init__`.
-- Inline attribute type annotations caused parser errors in this environment.
-  - Solution: Remove inline annotations on assignments; keep plain assignments.
-- Integration added more code/indentation risks.
-  - Solution: Iterate patches with static checks until clean.
+- **Vấn đề về thụt lề**: Các khối mã bị thụt lề sai và các dòng không thụt lề đúng trong `__init__` gây ra lỗi "self is not defined" và "Unexpected indentation"
+  - **Giải pháp**: Thụt lề lại chính xác trong class; đảm bảo tất cả phép gán nằm trong `__init__`
+- **Chú thích kiểu dữ liệu inline**: Gây ra lỗi phân tích cú pháp trong môi trường này
+  - **Giải pháp**: Loại bỏ các chú thích inline trong phép gán; giữ lại các phép gán đơn giản
+- **Tích hợp phức tạp**: Việc tích hợp thêm nhiều mã nguồn tăng nguy cơ lỗi thụt lề
+  - **Giải pháp**: Lặp lại các bản vá với kiểm tra tĩnh cho đến khi sạch
 
-## 5) Progress tracking
+## 5) Theo dõi tiến độ
 
-- Done:
-  - Stabilized GUI initialization; no syntax errors reported by static checks.
-  - Integrated FaceMesh + eye/yawn detection into GUI with periodic execution and counters.
-  - Added on-screen info panel and warning overlays.
-  - Rewrote progress documentation for Word-friendly formatting.
-- Pending/optional:
-  - GUI controls for microsleep/yawn thresholds and the secondary interval.
-  - Persist configuration (source, resolution, thresholds) and improve snapshots.
+- **Đã hoàn thành**:
+  - Ổn định hóa khởi tạo GUI; không còn lỗi cú pháp được báo cáo bởi kiểm tra tĩnh
+  - Tích hợp FaceMesh + phát hiện mắt/ngáp vào GUI với thực thi định kỳ và bộ đếm
+  - Thêm bảng thông tin trên màn hình và lớp phủ cảnh báo
+  - Viết lại tài liệu tiến độ theo định dạng thân thiện với Word
+- **Đang chờ/tùy chọn**:
+  - Điều khiển GUI cho ngưỡng vi giấc ngủ/ngáp và khoảng thời gian thứ cấp
+  - Lưu trữ cấu hình (nguồn, độ phân giải, ngưỡng) và cải thiện chụp ảnh nhanh
 
-## 6) Current behavior
+## 6) Hành vi hiện tại
 
-- The GUI runs with tracker-based hysteresis for sleepy state.
-- Optional FaceMesh + eye/yawn detection executes periodically to balance performance.
-- Side info panel shows counters and status; warnings appear for risky states.
+- GUI chạy với hysteresis dựa trên bộ theo dõi cho trạng thái buồn ngủ
+- FaceMesh tùy chọn + phát hiện mắt/ngáp thực thi định kỳ để cân bằng hiệu suất
+- Bảng thông tin bên cạnh hiển thị bộ đếm và trạng thái; cảnh báo xuất hiện cho các trạng thái nguy hiểm
 
-## 7) Recent operations (commands/results)
+## 7) Các hoạt động gần đây (lệnh/kết quả)
 
-- Iterative patches to `gui_app.py` to fix indentation and integrate helpers/panels.
-- Static error checks:
-  - Initial: type annotation errors, "self is not defined", and indentation issues.
-  - Final: "No errors found" after fixes.
-- Smoke test: Launched GUI in background (no critical runtime errors shown inline).
+- Các bản vá lặp lại cho `gui_app.py` để sửa thụt lề, tích hợp các hàm hỗ trợ/bảng điều khiển, và thêm lựa chọn đa mô hình + tải lại nóng
+- Kiểm tra lỗi tĩnh:
+  - **Ban đầu**: lỗi chú thích kiểu dữ liệu, "self is not defined", và các vấn đề thụt lề
+  - **Cuối cùng**: "No errors found" (Không tìm thấy lỗi) sau khi sửa
+- Kiểm tra sơ bộ: Khởi chạy GUI ở chế độ nền (không có lỗi runtime quan trọng nào hiển thị)
 
 ## 8) Next steps
 
