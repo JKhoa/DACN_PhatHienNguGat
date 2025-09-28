@@ -1,0 +1,42 @@
+{
+  "timestamp": "2025-09-25T14:10:54.292579",
+  "models_tested": 2,
+  "model_details": {
+    "YOLOv11n": {
+      "version": "v11",
+      "path": "../yolo11n-pose.pt"
+    },
+    "YOLOv8n-Custom": {
+      "version": "v8",
+      "path": "../yolo8n-pose-sleepy.pt"
+    }
+  },
+  "test_results": {
+    "YOLOv11n": {
+      "inference_time": 292.50502586364746,
+      "num_persons": 4,
+      "avg_confidence": 0.5438950061798096,
+      "max_confidence": 0.861559271812439,
+      "min_confidence": 0.29194679856300354
+    },
+    "YOLOv8n-Custom": {
+      "inference_time": 128.84902954101562,
+      "num_persons": 2,
+      "avg_confidence": 0.986902117729187,
+      "max_confidence": 0.9870418310165405,
+      "min_confidence": 0.9867623448371887
+    }
+  },
+  "summary": {
+    "YOLOv11n": {
+      "avg_inference_time": 292.50502586364746,
+      "detection_capability": true,
+      "confidence_score": 0.5438950061798096
+    },
+    "YOLOv8n-Custom": {
+      "avg_inference_time": 128.84902954101562,
+      "detection_capability": true,
+      "confidence_score": 0.986902117729187
+    }
+  }
+}
