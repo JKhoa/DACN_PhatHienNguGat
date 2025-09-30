@@ -1,66 +1,107 @@
-# 😴 Hệ Thống Phát Hiện Ngủ Gật YOLO - Tổng Hợp Multi-Model
+# 😴 Hệ Thống Phát Hiện Ngủ Gật YOLO - Tổng Hợp Multi-Model# Hệ thống phát hiện ngủ gật YOLO — Phiên bản tổng hợp
 
-> 🚀 **All-in-one Sleepy Detection System** với YOLOv5, YOLOv8, và YOLOv11 | GUI hiện đại + HUD tương lai
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![YOLO](https://img.shields.io/badge/YOLO-v5%20%7C%20v8%20%7C%20v11-green.svg)](https://github.com/ultralytics/ultralytics)
-[![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-orange.svg)](https://opencv.org)
 
-## Cách chạy nhanh
+> 🚀 **All-in-one Sleepy Detection System** với YOLOv5, YOLOv8, và YOLOv11 | GUI hiện đại + HUD tương lai## Cách chạy nhanh
 
 ```bash
-python -m venv .venv
-# Windows (cửa sổ lệnh)
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-python standalone_app_copy.py
-```
 
-- Chạy demo OpenCV toàn màn hình: `python sleepy_demo.py`
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)python -m venv .venv
 
-## 📋 Mục Lục
+[![YOLO](https://img.shields.io/badge/YOLO-v5%20%7C%20v8%20%7C%20v11-green.svg)](https://github.com/ultralytics/ultralytics)# Windows (cửa sổ lệnh)
+
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io).\.venv\Scripts\activate
+
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-orange.svg)](https://opencv.org)pip install -r requirements.txt
+
+streamlit run app.py
+
+## 📋 Mục Lục```
+
+- Chạy demo OpenCV toàn màn hình: `python sleepy_demo.py`LO Pose — All-in-one HUD Build
 
 - [🎯 Tính năng chính](#-tính-năng-chính)
-- [🚀 Cài đặt nhanh](#-cài-đặt-nhanh)
-- [🖥️ Chạy ứng dụng](#️-chạy-ứng-dụng)
-- [🤖 Models có sẵn](#-models-có-sẵn)
-- [🎮 Demo modes](#-demo-modes)
-- [⚙️ Tính năng GUI](#️-tính-năng-gui)
-- [🔧 Training tùy chỉnh](#-training-tùy-chỉnh)
-- [📁 Cấu trúc project](#-cấu-trúc-project)
-- [🔍 Troubleshooting](#-troubleshooting)
+
+- [🚀 Cài đặt nhanh](#-cài-đặt-nhanh)## Chạy nhanh
+
+- [🖥️ Chạy ứng dụng](#️-chạy-ứng-dụng)```bash
+
+- [🤖 Models có sẵn](#-models-có-sẵn)python -m venv .venv
+
+- [🎮 Demo modes](#-demo-modes)# Windows
+
+- [⚙️ Tính năng GUI](#️-tính-năng-gui).\.venv\Scriptsctivate
+
+- [🔧 Training tùy chỉnh](#-training-tùy-chỉnh)pip install -r requirements.txt
+
+- [📁 Cấu trúc project](#-cấu-trúc-project)streamlit run app.py
+
+- [🔍 Troubleshooting](#-troubleshooting)```
+
+- Demo OpenCV fullscreen: `python sleepy_demo.py`
 
 ## 🎯 Tính năng chính
 
-### 🌟 **Multi-Model Support**
-- ✅ **YOLOv11** (1000 epochs) - Độ chính xác cao nhất
-- ✅ **YOLOv8** (59 epochs) - Cân bằng tốc độ/chính xác
-- ✅ **YOLOv5** (50 epochs) - Tối ưu hiệu năng
+## Tính năng chính
 
-### 🎨 **Giao diện đa dạng**
-- **GUI App** - Giao diện người dùng thân thiện
-- **HUD Demo** - Màn hình fullscreen phong cách tương lai
-- **Standalone Copy** - Phiên bản độc lập có thể tùy chỉnh
-- **Standalone** - Chạy độc lập không cần GUI
+### 🌟 **Multi-Model Support**- **Giao diện HUD tương lai** (màu cyan neon, nền lưới).
 
-### 🎪 **Tính năng nâng cao**
-- 📹 **Real-time detection** từ webcam hoặc video file
-- 🎛️ **Adjustable confidence threshold** - Điều chỉnh độ nhạy
-- 📊 **FPS monitoring** - Hiển thị hiệu năng real-time
-- 🎯 **Multi-person detection** - Phát hiện nhiều người cùng lúc
-- 🎨 **Customizable UI** - Tùy chỉnh màu sắc và hiển thị
-- 💾 **Model switching** - Chuyển đổi model linh hoạt
+- ✅ **YOLOv11** (1000 epochs) - Độ chính xác cao nhất- Ứng dụngw bao gồm:
 
-## 🚀 Cài đặt nhanh
+- ✅ **YOLOv8** (59 epochs) - Cân bằng tốc độ/chính xác    - Webcam/Video với lựa chọn chỉ số camera
 
-### 1️⃣ **Clone Repository**
-```bash
-git clone https://github.com/JKhoa/DACN_PhatHienNguGat.git
-cd DACN_PhatHienNguGat/yolo-sleepy-allinone-final
-```
+- ✅ **YOLOv5** (50 epochs) - Tối ưu hiệu năng  - Điều chỉnh độ phân giải + định dạng MJPG  
+
+  - Kích thước ảnh, độ dày đường, lật ảnh, làm sắc nét, chiều rộng hiển thị
+
+### 🎨 **Giao diện đa dạng**  - **Thanh trượt ngưỡng độ tin cậy**
+
+- **GUI App** - Giao diện người dùng thân thiện  - FPS/Độ trễ hiển thị gọn trong 1 dòng (dòng trạng thái) — có thể ẩn bằng cách comment dòng `status_placeholder.markdown(...)`
+
+- **HUD Demo** - Màn hình fullscreen phong cách tương lai- Demo OpenCV toàn màn hình + letterbox, sử dụng phím ESC/Q/M để điều khiển
+
+- **Streamlit Web** - Chạy trên trình duyệt
+
+- **Standalone** - Chạy độc lập không cần GUI## Huấn luyện mô hình YOLO Pose
+
+Sắp xếp dữ liệu theo cấu trúc sau:
+
+### 🎪 **Tính năng nâng cao**```
+
+- 📹 **Real-time detection** từ webcam hoặc video filedatasets/sleepy_pose/
+
+- 🎛️ **Adjustable confidence threshold** - Điều chỉnh độ nhạy ├─ images/{train,val}   # Thư mục chứa ảnh huấn luyện và kiểm tra
+
+- 📊 **FPS monitoring** - Hiển thị hiệu năng real-time └─ labels/{train,val}   # Thư mục chứa nhãn định dạng YOLO Pose
+
+- 🎯 **Multi-person detection** - Phát hiện nhiều người cùng lúc```
+
+- 🎨 **Customizable UI** - Tùy chỉnh màu sắc và hiển thịLệnh huấn luyện:
+
+- 💾 **Model switching** - Chuyển đổi model linh hoạt```bash
+
+yolo task=pose mode=train model=yolo11n-pose.pt data=datasets/sleepy_pose/sleepy.yaml epochs=100 imgsz=640 batch=16 device=0
+
+## 🚀 Cài đặt nhanh```
+
+Giải thích tham số:
+
+### 1️⃣ **Clone Repository**- `task=pose`: Nhiệm vụ phát hiện tư thế
+
+```bash- `mode=train`: Chế độ huấn luyện  
+
+git clone https://github.com/JKhoa/DACN_PhatHienNguGat.git- `epochs=100`: Số lượng epochs huấn luyện
+
+cd DACN_PhatHienNguGat/yolo-sleepy-allinone-final- `imgsz=640`: Kích thước ảnh đầu vào
+
+```- `batch=16`: Kích thước batch
+
+- `device=0`: Sử dụng GPU (hoặc 'cpu' cho CPU)
 
 ### 2️⃣ **Tạo Virtual Environment**
-```bash
+
+```bashSử dụng file trọng số `runs/pose/train/weights/best.pt` cho ứng dụng và demo.
+
 # Windows
 python -m venv .venv
 .\.venv\Scripts\activate
@@ -96,7 +137,7 @@ python gui_app.py
 - 💾 Save/load settings
 - 🎨 Dark/Light theme
 
-### 🎮 **HUD Demo (Fullscreen)**
+###  **HUD Demo (Fullscreen)**
 ```bash
 python sleepy_demo.py
 ```
