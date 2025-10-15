@@ -1,0 +1,144 @@
+# Camera Configuration Sample
+# Copy this file to cameras.yaml and customize for your setup
+# Hướng dẫn: Sao chép file này thành cameras.yaml và tùy chỉnh
+
+cameras:
+  # === WEBCAM EXAMPLES ===
+  
+  - name: "Laptop Webcam"
+    type: webcam
+    source: 0              # Camera index (0 = first camera, 1 = second, etc.)
+    enabled: true
+  
+  - name: "External USB Camera"
+    type: webcam
+    source: 1
+    enabled: false         # Set to true to enable
+  
+  # === IP CAMERA EXAMPLES ===
+  
+  # IMOU Ranger
+  - name: "IMOU Office Camera"
+    type: ip
+    brand: imou
+    ip: "192.168.1.100"
+    port: 554
+    username: "admin"
+    password: "your_password"
+    stream_quality: main   # main (high quality) or sub (low quality)
+    enabled: true
+  
+  # Hikvision
+  - name: "Hikvision Entrance"
+    type: ip
+    brand: hikvision
+    ip: "192.168.1.101"
+    port: 554
+    username: "admin"
+    password: "your_password"
+    stream_quality: main
+    enabled: true
+  
+  # TP-Link Tapo
+  - name: "Tapo Living Room"
+    type: ip
+    brand: tapo
+    ip: "192.168.1.102"
+    port: 554
+    username: "admin"
+    password: "your_password"
+    stream_quality: main
+    enabled: true
+  
+  # Xiaomi Mi Home
+  - name: "Xiaomi Bedroom"
+    type: ip
+    brand: xiaomi
+    ip: "192.168.1.103"
+    port: 554
+    username: "admin"
+    password: "your_password"
+    stream_quality: main
+    enabled: false
+  
+  # Reolink
+  - name: "Reolink Outdoor"
+    type: ip
+    brand: reolink
+    ip: "192.168.1.104"
+    port: 554
+    username: "admin"
+    password: "your_password"
+    stream_quality: main
+    enabled: false
+  
+  # Foscam
+  - name: "Foscam Garage"
+    type: ip
+    brand: foscam
+    ip: "192.168.1.105"
+    port: 554
+    username: "admin"
+    password: "your_password"
+    stream_quality: main
+    enabled: false
+  
+  # Axis Professional
+  - name: "Axis Conference Room"
+    type: ip
+    brand: axis
+    ip: "192.168.1.106"
+    port: 554
+    username: "root"
+    password: "your_password"
+    stream_quality: main
+    enabled: false
+  
+  # Dahua
+  - name: "Dahua Parking"
+    type: ip
+    brand: dahua
+    ip: "192.168.1.107"
+    port: 554
+    username: "admin"
+    password: "your_password"
+    stream_quality: main
+    enabled: false
+  
+  # Generic RTSP Camera
+  - name: "Generic IP Camera"
+    type: ip
+    brand: generic
+    ip: "192.168.1.108"
+    port: 554
+    username: "admin"
+    password: "your_password"
+    stream_quality: main
+    enabled: false
+
+# === CONFIGURATION NOTES ===
+#
+# Camera Types:
+#   - webcam: Local USB/built-in cameras
+#   - ip: Network IP cameras
+#
+# Supported Brands (IP cameras):
+#   Home/Office: imou, tapo, tplink, xiaomi, mijia, reolink, foscam
+#   Professional: hikvision, dahua, axis, bosch, sony, panasonic, vivotek
+#   Others: dlink, arlo, netgear, generic, onvif, standard
+#
+# Stream Quality:
+#   - main: High quality, higher bandwidth
+#   - sub: Lower quality, lower bandwidth (good for multi-camera)
+#
+# Tips:
+#   1. Use 'sub' stream quality when monitoring many cameras
+#   2. Disable unused cameras by setting enabled: false
+#   3. Start with 2-4 cameras and add more gradually
+#   4. Check your network bandwidth for IP cameras
+#   5. Use lower process stride (--stride) for better performance
+#
+# Example Usage:
+#   python multi_camera_app.py --config cameras.yaml
+#   python multi_camera_app.py --config cameras.yaml --stride 2
+#   python multi_camera_app.py --config cameras.yaml --view grid

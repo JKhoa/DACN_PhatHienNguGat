@@ -38,13 +38,16 @@ python standalone_app_copy.py
 - ✅ **YOLOv5** (50 epochs) - Tối ưu hiệu năng
 
 ### 🎨 **Giao diện đa dạng**
-- **GUI App** - Giao diện người dùng thân thiện
+- **GUI App** - Giao diện người dùng thân thiện với **Multi-Camera Tab** tích hợp
 - **HUD Demo** - Màn hình fullscreen phong cách tương lai
+- **Multi-Camera CLI** - 🆕 Giám sát không giới hạn camera từ command line
 - **Standalone Copy** - Phiên bản độc lập có thể tùy chỉnh
 - **Standalone** - Chạy độc lập không cần GUI
 
 ### 🎪 **Tính năng nâng cao**
-- 📹 **Real-time detection** từ webcam hoặc video file
+- 📹 **Real-time detection** từ webcam, video file hoặc **IP camera**
+- 🎥 **Multi-camera monitoring** - Giám sát không giới hạn camera cùng lúc
+- 📷 **IP Camera support** - Kết nối với camera IMOU, Hikvision, Dahua
 - 🎛️ **Adjustable confidence threshold** - Điều chỉnh độ nhạy
 - 📊 **FPS monitoring** - Hiển thị hiệu năng real-time
 - 🎯 **Multi-person detection** - Phát hiện nhiều người cùng lúc
@@ -80,6 +83,9 @@ pip install -r requirements.txt
 python -c "import ultralytics; print('✅ Ultralytics OK')"
 python -c "import cv2; print('✅ OpenCV OK')"
 python -c "import numpy; print('✅ NumPy OK')"
+
+# Test multi-camera integration
+python test_multi_camera_integration.py
 ```
 
 ## 🖥️ Chạy ứng dụng
@@ -91,10 +97,32 @@ python gui_app.py
 **Tính năng GUI:**
 - 🎛️ Chọn model (YOLOv5/v8/v11)
 - 📹 Chọn camera hoặc video file
-- 🎚️ Điều chỉnh confidence threshold
+- � **Multi-Camera Tab** - Giám sát nhiều camera cùng lúc (NEW!)
+- �🎚️ Điều chỉnh confidence threshold
 - 📊 Monitor FPS real-time
-- 💾 Save/load settings
+- 💾 Save/load settings & camera configs
 - 🎨 Dark/Light theme
+
+**Multi-Camera trong GUI:**
+1. Mở GUI: `python gui_app.py`
+2. Click tab **"📹 Multi-Camera"**
+3. Click **"➕ Add Camera"** để thêm webcam hoặc IP camera
+4. Click **"▶️ Start All"** để bắt đầu giám sát
+5. Switch giữa **Grid View** (mosaic) và **Single View** (fullscreen)
+6. Save/Load config bằng YAML cho dễ dàng quản lý
+
+👉 **Chi tiết**: Xem [docs/MULTI_CAMERA_GUI_GUIDE.md](docs/MULTI_CAMERA_GUI_GUIDE.md)
+- 🎥 **📹 Multi-Camera Tab** - Giám sát nhiều camera trong cùng một giao diện
+
+**Multi-Camera trong GUI:**
+1. Mở tab "📹 Multi-Camera" trong GUI
+2. Click "➕ Add Camera" để thêm camera
+3. Chọn loại: Webcam hoặc IP Camera
+4. Với IP Camera: nhập brand, IP, username, password
+5. Click "Test Connection" để kiểm tra
+6. Click "▶️ Start All" để bắt đầu giám sát
+7. Chọn "Grid View" để xem tất cả cùng lúc hoặc "Single View" để xem từng camera
+8. Lưu cấu hình: "💾 Save Config" để sử dụng lại sau
 
 ### 🎮 **HUD Demo (Fullscreen)**
 ```bash
@@ -106,6 +134,37 @@ python sleepy_demo.py
 - `SPACE` - Pause/Resume
 - `C` - Chuyển camera
 
+### 🎥 **Multi-Camera CLI Mode (Advanced)**
+```bash
+# Setup cameras
+copy cameras.sample.yaml cameras.yaml
+# Edit cameras.yaml với thông tin camera của bạn
+
+# Run multi-camera app
+python multi_camera_app.py --config cameras.yaml
+
+# Grid view (mosaic)
+python multi_camera_app.py --config cameras.yaml --view grid
+
+# Single view (từng camera)
+python multi_camera_app.py --config cameras.yaml --view single
+
+# CLI mode (no GUI, for servers)
+python multi_camera_app.py --config cameras.yaml --mode cli
+
+# Performance tuning
+python multi_camera_app.py --config cameras.yaml --stride 2 --max-fps 15
+```
+**Tính năng:**
+- 🎯 **Không giới hạn camera** - Giám sát bao nhiêu camera cũng được
+- 🖥️ **Dynamic grid layout** - Tự động tính toán bố cục (2x2, 3x3, 4x4...)
+- 🔄 **Auto-reconnect** - Tự động kết nối lại khi camera mất kết nối
+- 📊 **Per-camera stats** - FPS và detection count cho từng camera
+- ⚡ **Multi-threading** - Xử lý song song nhiều camera
+- 🎨 **Multiple views** - Grid, Single, HUD modes
+
+**📖 Xem chi tiết**: [docs/MULTI_CAMERA_GUIDE.md](docs/MULTI_CAMERA_GUIDE.md)
+
 ### ⚡ **Standalone App (Editable Version)**
 ```bash
 python standalone_app_copy.py
@@ -116,6 +175,58 @@ python standalone_app_copy.py
 ```bash
 python standalone_app.py
 ```
+
+### 📷 **IP Camera Support - 15+ Thương Hiệu**
+```bash
+# IMOU Ranger
+python standalone_app.py --ip-camera --ip 192.168.1.100 \
+  --username admin --password 123456 --camera-brand imou
+
+# Hikvision DS series
+python standalone_app.py --ip-camera --ip 192.168.1.101 \
+  --username admin --password abcd --camera-brand hikvision
+
+# TP-Link Tapo C200/C210
+python standalone_app.py --ip-camera --ip 192.168.1.102 \
+  --username admin --password tapopass --camera-brand tapo
+
+# Xiaomi Mi Home Security
+python standalone_app.py --ip-camera --ip 192.168.1.103 \
+  --username admin --password xiaomipass --camera-brand xiaomi
+
+# Reolink RLC series
+python standalone_app.py --ip-camera --ip 192.168.1.104 \
+  --username admin --password reopass --camera-brand reolink
+
+# Foscam FI/R series
+python standalone_app.py --ip-camera --ip 192.168.1.105 \
+  --username admin --password foscampass --camera-brand foscam
+
+# Axis Professional
+python standalone_app.py --ip-camera --ip 192.168.1.106 \
+  --username root --password axispass --camera-brand axis
+
+# Bosch Security
+python standalone_app.py --ip-camera --ip 192.168.1.107 \
+  --username service --password boschpass --camera-brand bosch
+
+# Camera khác (Generic RTSP)
+python standalone_app.py --ip-camera --ip 192.168.1.108 \
+  --username admin --password genericpass --camera-brand generic
+
+# Test camera trước khi sử dụng
+python test_ip_camera.py --ip 192.168.1.100 --username admin --password 123456 --brand imou
+
+# Demo test nhiều camera cùng lúc
+python demo_multi_camera.py
+```
+
+**📖 Hỗ trợ đầy đủ:** 
+- 🏠 **Gia đình**: IMOU, TP-Link Tapo, Xiaomi, Reolink, Foscam
+- 🏢 **Doanh nghiệp**: Hikvision, Dahua, Axis, Bosch, Sony, Panasonic, Vivotek
+- 🌐 **Khác**: D-Link, Netgear Arlo, ONVIF, Generic RTSP
+
+**📋 Chi tiết setup**: Xem [CAMERA_SUPPORT_EXTENDED.md](CAMERA_SUPPORT_EXTENDED.md) cho 15+ thương hiệu
 
 ## 🤖 Models có sẵn
 
@@ -237,8 +348,11 @@ results = model.train(
 ```
 yolo-sleepy-allinone-final/
 ├── 📱 GUI Applications
-│   ├── gui_app.py              # Main GUI application
+│   ├── gui_app.py              # Main GUI application (với Multi-Camera Tab)
+│   ├── multi_camera_gui.py     # 🆕 Multi-camera widget cho GUI
+│   ├── camera_core.py          # 🆕 Core camera classes (shared)
 │   ├── sleepy_demo.py          # HUD fullscreen demo
+│   ├── multi_camera_app.py     # Multi-camera CLI monitoring
 │   ├── standalone_app.py       # Standalone detection (original)
 │   └── standalone_app_copy.py  # Standalone detection (editable copy)
 │
@@ -252,15 +366,26 @@ yolo-sleepy-allinone-final/
 │   │   ├── benchmark_models.py      # Model comparison
 │   │   ├── train_yolov5_50_epochs.py
 │   │   ├── train_v11_1000_epochs.py
-│   │   └── monitor_training.py
+│   │   ├── test_ip_camera.py        # Test single camera
+│   │   └── demo_multi_camera.py     # Test multiple cameras
 │
 ├── 📊 Datasets
 │   └── datasets/sleepy_pose/   # Training dataset
 │
 ├── 📋 Configuration  
 │   ├── requirements.txt        # Python dependencies
+│   ├── cameras.sample.yaml     # Multi-camera config sample
+│   ├── cameras.yaml           # Your camera config (create from sample)
 │   ├── README.md              # This file
 │   └── .gitignore            # Git ignore rules
+│
+├── 📖 Documentation
+│   ├── docs/
+│   │   ├── MULTI_CAMERA_GUIDE.md    # Multi-camera CLI guide
+│   │   ├── MULTI_CAMERA_QUICKSTART.md # Quick start
+│   │   ├── IP_CAMERA_GUIDE.md       # IP camera setup
+│   │   └── CAMERA_SUPPORT_EXTENDED.md # 15+ camera brands
+```
 │
 └── 📈 Results & Backups
     ├── model_backups_*/       # Model backups

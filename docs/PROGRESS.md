@@ -1,4 +1,28 @@
-# Nhật ký phát triển hệ thốn### Giai đoạn 3 ### Giai đoạn 4 — Xây dựng hệ ### Giai đoạn 6 — Bổ sung ### Giai đoạn 8 — Cải thiện giao diện hiển thị
+# # 📚 PROGRESS LOG - YOLO SLEEPY DETECTION
+
+## 🎓 Academic Work (October 2025)
+
+### **Product Management Assignment Completed**
+- ✅ **Bài tập 1A**: Tháp quản lý sản phẩm (13 bước)
+  - [1] Hình vẽ tóm tắt Product Management Tower
+  - [2] Giải thích chi tiết từng bước cho YOLO Sleepy Detection
+- ✅ **Bài tập 1B**: 10 giai đoạn phát triển phần mềm
+  - Liệt kê công cụ/phần mềm cho từng giai đoạn
+  - Áp dụng thực tế cho dự án hiện tại
+- ✅ **Documentation**: 
+  - `PRODUCT_MANAGEMENT_ASSIGNMENT.md` (chi tiết đầy đủ)
+  - `BAI_TAP_TOM_TAT.md` (tóm tắt nộp bài)
+  - `PRESENTATION_OUTLINE.md` (outline thuyết trình)
+
+### **Project Integration with Academic Work**
+- ✅ Sử dụng dự án thực tế làm case study
+- ✅ Áp dụng lý thuyết Product Management Tower
+- ✅ Minh chứng Software Development Lifecycle
+- ✅ Kết hợp technical achievements với business value
+
+---
+
+# Nhật ký phát triển hệ thống
 - Thu nhỏ và di chuyển bảng ghi chép sự kiện lên góc phải-trên với nền bán trong suốt, tự động thích ứng kích thước
 - Sắp xếp bảng thông tin mắt/ngáp ngay bên dưới bảng ghi chép, tránh che khuất khung hình chính
 

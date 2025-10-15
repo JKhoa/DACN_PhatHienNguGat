@@ -3,3 +3,4 @@ opencv-python==4.10.0.84
 streamlit
 PyQt5>=5.15
 Pillow>=10
+PyYAML>=6.0

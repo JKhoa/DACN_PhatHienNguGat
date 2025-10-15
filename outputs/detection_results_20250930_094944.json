@@ -1,0 +1,2247 @@
+{
+  "session_info": {
+    "timestamp": "20250930_094944",
+    "model": "yolo11n-pose.pt",
+    "confidence_threshold": 0.5,
+    "total_frames": 318,
+    "total_detections": 318,
+    "sleepy_detections": 0
+  },
+  "frame_results": [
+    {
+      "timestamp": "2025-09-30T09:49:04.812568",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.29039788246154785,
+      "fps": 3.443551280482949
+    },
+    {
+      "timestamp": "2025-09-30T09:49:05.027571",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10197591781616211,
+      "fps": 9.806236819586736
+    },
+    {
+      "timestamp": "2025-09-30T09:49:05.148098",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09200382232666016,
+      "fps": 10.869113638012708
+    },
+    {
+      "timestamp": "2025-09-30T09:49:05.273424",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09731173515319824,
+      "fps": 10.276252894121106
+    },
+    {
+      "timestamp": "2025-09-30T09:49:05.401717",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09750580787658691,
+      "fps": 10.255799339314226
+    },
+    {
+      "timestamp": "2025-09-30T09:49:05.566469",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.13578534126281738,
+      "fps": 7.364565207848646
+    },
+    {
+      "timestamp": "2025-09-30T09:49:05.698098",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0935201644897461,
+      "fps": 10.692881107043432
+    },
+    {
+      "timestamp": "2025-09-30T09:49:05.819684",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09151935577392578,
+      "fps": 10.926650341270255
+    },
+    {
+      "timestamp": "2025-09-30T09:49:05.951199",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09300398826599121,
+      "fps": 10.752227067295244
+    },
+    {
+      "timestamp": "2025-09-30T09:49:06.066949",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08772993087768555,
+      "fps": 11.39861835060848
+    },
+    {
+      "timestamp": "2025-09-30T09:49:06.189417",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09494614601135254,
+      "fps": 10.532286375061835
+    },
+    {
+      "timestamp": "2025-09-30T09:49:06.308458",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08952188491821289,
+      "fps": 11.170452911191482
+    },
+    {
+      "timestamp": "2025-09-30T09:49:06.423493",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08652496337890625,
+      "fps": 11.557358257649238
+    },
+    {
+      "timestamp": "2025-09-30T09:49:06.538769",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0877840518951416,
+      "fps": 11.391590823291045
+    },
+    {
+      "timestamp": "2025-09-30T09:49:06.658955",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0920264720916748,
+      "fps": 10.86643850699635
+    },
+    {
+      "timestamp": "2025-09-30T09:49:06.790271",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09448885917663574,
+      "fps": 10.583258266782735
+    },
+    {
+      "timestamp": "2025-09-30T09:49:06.914583",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09756684303283691,
+      "fps": 10.249383590934082
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.032511",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08710908889770508,
+      "fps": 11.479858332284145
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.148699",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08800363540649414,
+      "fps": 11.363166934876489
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.264519",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08792400360107422,
+      "fps": 11.37345843050057
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.381791",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08860325813293457,
+      "fps": 11.286266679941555
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.501774",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09219622611999512,
+      "fps": 10.846430944998565
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.619082",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08960652351379395,
+      "fps": 11.159901765925122
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.738336",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08945059776306152,
+      "fps": 11.179355141357684
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.857935",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0925140380859375,
+      "fps": 10.809170377700807
+    },
+    {
+      "timestamp": "2025-09-30T09:49:07.976480",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09106302261352539,
+      "fps": 10.981405748456588
+    },
+    {
+      "timestamp": "2025-09-30T09:49:08.096266",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08970069885253906,
+      "fps": 11.148185162346637
+    },
+    {
+      "timestamp": "2025-09-30T09:49:08.217457",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09253668785095215,
+      "fps": 10.806524668471917
+    },
+    {
+      "timestamp": "2025-09-30T09:49:08.336628",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09043478965759277,
+      "fps": 11.057691445805684
+    },
+    {
+      "timestamp": "2025-09-30T09:49:08.460238",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09559082984924316,
+      "fps": 10.461254511307263
+    },
+    {
+      "timestamp": "2025-09-30T09:49:08.571869",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08411002159118652,
+      "fps": 11.88918967183793
+    },
+    {
+      "timestamp": "2025-09-30T09:49:08.702984",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0858759880065918,
+      "fps": 11.644698631277937
+    },
+    {
+      "timestamp": "2025-09-30T09:49:08.824004",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08243966102600098,
+      "fps": 12.130083840162879
+    },
+    {
+      "timestamp": "2025-09-30T09:49:08.949113",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09751486778259277,
+      "fps": 10.254846494069783
+    },
+    {
+      "timestamp": "2025-09-30T09:49:09.063924",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08658885955810547,
+      "fps": 11.548829781375627
+    },
+    {
+      "timestamp": "2025-09-30T09:49:09.186196",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09476041793823242,
+      "fps": 10.552929395603012
+    },
+    {
+      "timestamp": "2025-09-30T09:49:09.310583",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0840311050415039,
+      "fps": 11.90035522567612
+    },
+    {
+      "timestamp": "2025-09-30T09:49:09.432619",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09351515769958496,
+      "fps": 10.69345360259643
+    },
+    {
+      "timestamp": "2025-09-30T09:49:09.549642",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09000396728515625,
+      "fps": 11.110621344409596
+    },
+    {
+      "timestamp": "2025-09-30T09:49:09.667019",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08935761451721191,
+      "fps": 11.190988092093502
+    },
+    {
+      "timestamp": "2025-09-30T09:49:09.788961",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09452342987060547,
+      "fps": 10.579387580083742
+    },
+    {
+      "timestamp": "2025-09-30T09:49:09.921072",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.089599609375,
+      "fps": 11.160762942779291
+    },
+    {
+      "timestamp": "2025-09-30T09:49:10.045447",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09600663185119629,
+      "fps": 10.415947114465297
+    },
+    {
+      "timestamp": "2025-09-30T09:49:10.168993",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09450793266296387,
+      "fps": 10.581122365317423
+    },
+    {
+      "timestamp": "2025-09-30T09:49:10.291022",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09271717071533203,
+      "fps": 10.785488731858344
+    },
+    {
+      "timestamp": "2025-09-30T09:49:10.419504",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10097336769104004,
+      "fps": 9.903601542337544
+    },
+    {
+      "timestamp": "2025-09-30T09:49:10.541306",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09250783920288086,
+      "fps": 10.809894692350118
+    },
+    {
+      "timestamp": "2025-09-30T09:49:10.669004",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09967637062072754,
+      "fps": 10.032468013959285
+    },
+    {
+      "timestamp": "2025-09-30T09:49:10.824144",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.12715935707092285,
+      "fps": 7.864147971763118
+    },
+    {
+      "timestamp": "2025-09-30T09:49:10.960678",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.1075143814086914,
+      "fps": 9.301081277663943
+    },
+    {
+      "timestamp": "2025-09-30T09:49:11.090450",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10051107406616211,
+      "fps": 9.949152461963973
+    },
+    {
+      "timestamp": "2025-09-30T09:49:11.220485",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09251546859741211,
+      "fps": 10.809003241950531
+    },
+    {
+      "timestamp": "2025-09-30T09:49:11.332476",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08447504043579102,
+      "fps": 11.837816174353822
+    },
+    {
+      "timestamp": "2025-09-30T09:49:11.457467",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09447431564331055,
+      "fps": 10.584887471167484
+    },
+    {
+      "timestamp": "2025-09-30T09:49:11.571341",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08376932144165039,
+      "fps": 11.937544470818604
+    },
+    {
+      "timestamp": "2025-09-30T09:49:11.700050",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10118818283081055,
+      "fps": 9.882576917820806
+    },
+    {
+      "timestamp": "2025-09-30T09:49:11.818584",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09001016616821289,
+      "fps": 11.109856170370566
+    },
+    {
+      "timestamp": "2025-09-30T09:49:11.940613",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0945134162902832,
+      "fps": 10.58050845319839
+    },
+    {
+      "timestamp": "2025-09-30T09:49:12.066154",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09751462936401367,
+      "fps": 10.254871566676284
+    },
+    {
+      "timestamp": "2025-09-30T09:49:12.202256",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09459066390991211,
+      "fps": 10.571867863750246
+    },
+    {
+      "timestamp": "2025-09-30T09:49:12.324868",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09395718574523926,
+      "fps": 10.643145514292602
+    },
+    {
+      "timestamp": "2025-09-30T09:49:12.445362",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08598995208740234,
+      "fps": 11.62926569587543
+    },
+    {
+      "timestamp": "2025-09-30T09:49:12.577029",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09214901924133301,
+      "fps": 10.851987446345547
+    },
+    {
+      "timestamp": "2025-09-30T09:49:12.695837",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09051156044006348,
+      "fps": 11.0483124491285
+    },
+    {
+      "timestamp": "2025-09-30T09:49:12.823370",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09101104736328125,
+      "fps": 10.987677089445889
+    },
+    {
+      "timestamp": "2025-09-30T09:49:12.950390",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09350848197937012,
+      "fps": 10.694217025366966
+    },
+    {
+      "timestamp": "2025-09-30T09:49:13.066667",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08750796318054199,
+      "fps": 11.427531434331875
+    },
+    {
+      "timestamp": "2025-09-30T09:49:13.182267",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08652520179748535,
+      "fps": 11.557326411564205
+    },
+    {
+      "timestamp": "2025-09-30T09:49:13.294289",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08351683616638184,
+      "fps": 11.973633651636478
+    },
+    {
+      "timestamp": "2025-09-30T09:49:13.403319",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.07852029800415039,
+      "fps": 12.735560427281396
+    },
+    {
+      "timestamp": "2025-09-30T09:49:13.521108",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0894479751586914,
+      "fps": 11.179682918767925
+    },
+    {
+      "timestamp": "2025-09-30T09:49:13.652151",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09153103828430176,
+      "fps": 10.925255724663918
+    },
+    {
+      "timestamp": "2025-09-30T09:49:13.769683",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08950424194335938,
+      "fps": 11.172654818224439
+    },
+    {
+      "timestamp": "2025-09-30T09:49:13.895653",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08451581001281738,
+      "fps": 11.832105730848978
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.024473",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08729863166809082,
+      "fps": 11.454933266331109
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.157363",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10430192947387695,
+      "fps": 9.587550345849126
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.274890",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0895082950592041,
+      "fps": 11.172148897915696
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.402605",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09119796752929688,
+      "fps": 10.965156648680303
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.524089",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08795309066772461,
+      "fps": 11.369697101127128
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.645097",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0935065746307373,
+      "fps": 10.694435166180089
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.759125",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0870215892791748,
+      "fps": 11.491401252071947
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.869648",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08250546455383301,
+      "fps": 12.120409301465383
+    },
+    {
+      "timestamp": "2025-09-30T09:49:14.986274",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08758091926574707,
+      "fps": 11.418012146751929
+    },
+    {
+      "timestamp": "2025-09-30T09:49:15.104302",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09051799774169922,
+      "fps": 11.04752673444661
+    },
+    {
+      "timestamp": "2025-09-30T09:49:15.231328",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09952020645141602,
+      "fps": 10.04821066652612
+    },
+    {
+      "timestamp": "2025-09-30T09:49:15.353811",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09496450424194336,
+      "fps": 10.530250307549396
+    },
+    {
+      "timestamp": "2025-09-30T09:49:15.473141",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09042072296142578,
+      "fps": 11.059411684051765
+    },
+    {
+      "timestamp": "2025-09-30T09:49:15.588531",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08603024482727051,
+      "fps": 11.623819065118045
+    },
+    {
+      "timestamp": "2025-09-30T09:49:15.716105",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09205198287963867,
+      "fps": 10.86342704108326
+    },
+    {
+      "timestamp": "2025-09-30T09:49:15.832131",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08851742744445801,
+      "fps": 11.297210378458745
+    },
+    {
+      "timestamp": "2025-09-30T09:49:15.953150",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09251046180725098,
+      "fps": 10.809588239690529
+    },
+    {
+      "timestamp": "2025-09-30T09:49:16.073678",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09351134300231934,
+      "fps": 10.693889830832578
+    },
+    {
+      "timestamp": "2025-09-30T09:49:16.197363",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09550786018371582,
+      "fps": 10.470342420785393
+    },
+    {
+      "timestamp": "2025-09-30T09:49:16.315395",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08851146697998047,
+      "fps": 11.297971145661613
+    },
+    {
+      "timestamp": "2025-09-30T09:49:16.446420",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0925137996673584,
+      "fps": 10.809198234161704
+    },
+    {
+      "timestamp": "2025-09-30T09:49:16.565451",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09107470512390137,
+      "fps": 10.979997120381157
+    },
+    {
+      "timestamp": "2025-09-30T09:49:16.687473",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09350872039794922,
+      "fps": 10.694189758391042
+    },
+    {
+      "timestamp": "2025-09-30T09:49:16.819146",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10215640068054199,
+      "fps": 9.788911838496995
+    },
+    {
+      "timestamp": "2025-09-30T09:49:16.937702",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09103560447692871,
+      "fps": 10.984713132249608
+    },
+    {
+      "timestamp": "2025-09-30T09:49:17.063726",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09499740600585938,
+      "fps": 10.526603220495522
+    },
+    {
+      "timestamp": "2025-09-30T09:49:17.283293",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.19050860404968262,
+      "fps": 5.24910675288561
+    },
+    {
+      "timestamp": "2025-09-30T09:49:17.423317",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.1115102767944336,
+      "fps": 8.967783317796574
+    },
+    {
+      "timestamp": "2025-09-30T09:49:17.559341",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09551334381103516,
+      "fps": 10.4697412958174
+    },
+    {
+      "timestamp": "2025-09-30T09:49:17.703874",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.11450886726379395,
+      "fps": 8.732948145372019
+    },
+    {
+      "timestamp": "2025-09-30T09:49:17.841900",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10951542854309082,
+      "fps": 9.131133515188063
+    },
+    {
+      "timestamp": "2025-09-30T09:49:17.968182",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0943596363067627,
+      "fps": 10.597751741528603
+    },
+    {
+      "timestamp": "2025-09-30T09:49:18.097360",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09798288345336914,
+      "fps": 10.205864175000608
+    },
+    {
+      "timestamp": "2025-09-30T09:49:18.218428",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09351158142089844,
+      "fps": 10.69386256552512
+    },
+    {
+      "timestamp": "2025-09-30T09:49:18.342880",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09651422500610352,
+      "fps": 10.361166967219189
+    },
+    {
+      "timestamp": "2025-09-30T09:49:18.467422",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09652352333068848,
+      "fps": 10.360168853078555
+    },
+    {
+      "timestamp": "2025-09-30T09:49:18.599185",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09968709945678711,
+      "fps": 10.031388268383566
+    },
+    {
+      "timestamp": "2025-09-30T09:49:18.723500",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09601783752441406,
+      "fps": 10.41473153095886
+    },
+    {
+      "timestamp": "2025-09-30T09:49:18.850527",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09750771522521973,
+      "fps": 10.255598725600706
+    },
+    {
+      "timestamp": "2025-09-30T09:49:18.978058",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09951257705688477,
+      "fps": 10.04898103913404
+    },
+    {
+      "timestamp": "2025-09-30T09:49:19.098078",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08951115608215332,
+      "fps": 11.17179180528291
+    },
+    {
+      "timestamp": "2025-09-30T09:49:19.218961",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09337854385375977,
+      "fps": 10.709098243876035
+    },
+    {
+      "timestamp": "2025-09-30T09:49:19.348321",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08846092224121094,
+      "fps": 11.304426572371117
+    },
+    {
+      "timestamp": "2025-09-30T09:49:19.471223",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09427833557128906,
+      "fps": 10.606890691699205
+    },
+    {
+      "timestamp": "2025-09-30T09:49:19.588692",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08851027488708496,
+      "fps": 11.298123311397779
+    },
+    {
+      "timestamp": "2025-09-30T09:49:19.701947",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08427715301513672,
+      "fps": 11.86561202204343
+    },
+    {
+      "timestamp": "2025-09-30T09:49:19.820613",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0886375904083252,
+      "fps": 11.281895134934489
+    },
+    {
+      "timestamp": "2025-09-30T09:49:19.943856",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09197568893432617,
+      "fps": 10.872438266964595
+    },
+    {
+      "timestamp": "2025-09-30T09:49:20.067980",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09252238273620605,
+      "fps": 10.808195492015553
+    },
+    {
+      "timestamp": "2025-09-30T09:49:20.184009",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08251595497131348,
+      "fps": 12.118868409723285
+    },
+    {
+      "timestamp": "2025-09-30T09:49:20.303306",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08951568603515625,
+      "fps": 11.171226455297026
+    },
+    {
+      "timestamp": "2025-09-30T09:49:20.415827",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08406257629394531,
+      "fps": 11.89589998411726
+    },
+    {
+      "timestamp": "2025-09-30T09:49:20.539640",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09451508522033691,
+      "fps": 10.58032162451914
+    },
+    {
+      "timestamp": "2025-09-30T09:49:20.665800",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09600138664245605,
+      "fps": 10.41651620850397
+    },
+    {
+      "timestamp": "2025-09-30T09:49:20.787893",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09351301193237305,
+      "fps": 10.693698976599986
+    },
+    {
+      "timestamp": "2025-09-30T09:49:20.904757",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08676266670227051,
+      "fps": 11.525694610465804
+    },
+    {
+      "timestamp": "2025-09-30T09:49:21.028297",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09602499008178711,
+      "fps": 10.413955774931845
+    },
+    {
+      "timestamp": "2025-09-30T09:49:21.151256",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08719253540039062,
+      "fps": 11.468871680448002
+    },
+    {
+      "timestamp": "2025-09-30T09:49:21.278784",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08851504325866699,
+      "fps": 11.297514673044963
+    },
+    {
+      "timestamp": "2025-09-30T09:49:21.404607",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08808684349060059,
+      "fps": 11.35243312591518
+    },
+    {
+      "timestamp": "2025-09-30T09:49:21.537656",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09553217887878418,
+      "fps": 10.467677087830772
+    },
+    {
+      "timestamp": "2025-09-30T09:49:21.680201",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0995185375213623,
+      "fps": 10.048379175440992
+    },
+    {
+      "timestamp": "2025-09-30T09:49:21.797426",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08760523796081543,
+      "fps": 11.414842574222396
+    },
+    {
+      "timestamp": "2025-09-30T09:49:21.907531",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08144378662109375,
+      "fps": 12.278407494145199
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.022662",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08442378044128418,
+      "fps": 11.84500379837277
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.145654",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08447504043579102,
+      "fps": 11.837816174353822
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.263255",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09000611305236816,
+      "fps": 11.110356464545593
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.383810",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09250712394714355,
+      "fps": 10.809978273363866
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.498638",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08630776405334473,
+      "fps": 11.586443131372565
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.622214",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09304523468017578,
+      "fps": 10.747460667247475
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.739073",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08788609504699707,
+      "fps": 11.378364227756965
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.847569",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.07747983932495117,
+      "fps": 12.90658329589444
+    },
+    {
+      "timestamp": "2025-09-30T09:49:22.966580",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09100556373596191,
+      "fps": 10.9883391624422
+    },
+    {
+      "timestamp": "2025-09-30T09:49:23.083112",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08451151847839355,
+      "fps": 11.832706570710391
+    },
+    {
+      "timestamp": "2025-09-30T09:49:23.196692",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08550381660461426,
+      "fps": 11.695384366573814
+    },
+    {
+      "timestamp": "2025-09-30T09:49:23.319709",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09350991249084473,
+      "fps": 10.694053425597067
+    },
+    {
+      "timestamp": "2025-09-30T09:49:23.438087",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0898582935333252,
+      "fps": 11.128633325638841
+    },
+    {
+      "timestamp": "2025-09-30T09:49:23.554320",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08671998977661133,
+      "fps": 11.531366673081681
+    },
+    {
+      "timestamp": "2025-09-30T09:49:23.671659",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08727669715881348,
+      "fps": 11.45781213718875
+    },
+    {
+      "timestamp": "2025-09-30T09:49:23.788123",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08638501167297363,
+      "fps": 11.576082246601807
+    },
+    {
+      "timestamp": "2025-09-30T09:49:23.927354",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10051608085632324,
+      "fps": 9.948656886348273
+    },
+    {
+      "timestamp": "2025-09-30T09:49:24.062096",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09523677825927734,
+      "fps": 10.500145198922525
+    },
+    {
+      "timestamp": "2025-09-30T09:49:24.174951",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08209443092346191,
+      "fps": 12.181094244167642
+    },
+    {
+      "timestamp": "2025-09-30T09:49:24.294979",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0905146598815918,
+      "fps": 11.047934128108817
+    },
+    {
+      "timestamp": "2025-09-30T09:49:24.417089",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09358811378479004,
+      "fps": 10.685117581272593
+    },
+    {
+      "timestamp": "2025-09-30T09:49:24.534361",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0895378589630127,
+      "fps": 11.1684600411664
+    },
+    {
+      "timestamp": "2025-09-30T09:49:24.651411",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08650946617126465,
+      "fps": 11.559428629697917
+    },
+    {
+      "timestamp": "2025-09-30T09:49:24.782526",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09151315689086914,
+      "fps": 10.9273904865124
+    },
+    {
+      "timestamp": "2025-09-30T09:49:24.902886",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09084248542785645,
+      "fps": 11.008065172260846
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.034343",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09253096580505371,
+      "fps": 10.807192935895884
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.147835",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08350634574890137,
+      "fps": 11.975137829727824
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.262857",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08700680732727051,
+      "fps": 11.493353574491756
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.379543",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08152031898498535,
+      "fps": 12.266880361253039
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.492563",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0845179557800293,
+      "fps": 11.831805333799727
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.619607",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0845184326171875,
+      "fps": 11.831738580971294
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.748861",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09050416946411133,
+      "fps": 11.04921470382137
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.874398",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.093505859375,
+      "fps": 10.694516971279374
+    },
+    {
+      "timestamp": "2025-09-30T09:49:25.983435",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08150839805603027,
+      "fps": 12.268674441529114
+    },
+    {
+      "timestamp": "2025-09-30T09:49:26.093477",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.07952141761779785,
+      "fps": 12.575228535364893
+    },
+    {
+      "timestamp": "2025-09-30T09:49:26.206504",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08151483535766602,
+      "fps": 12.267705573007154
+    },
+    {
+      "timestamp": "2025-09-30T09:49:26.340686",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09051179885864258,
+      "fps": 11.048283346591717
+    },
+    {
+      "timestamp": "2025-09-30T09:49:26.462226",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08649492263793945,
+      "fps": 11.561372269051176
+    },
+    {
+      "timestamp": "2025-09-30T09:49:26.582965",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09372138977050781,
+      "fps": 10.669922868714004
+    },
+    {
+      "timestamp": "2025-09-30T09:49:26.712129",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08945131301879883,
+      "fps": 11.179265750854244
+    },
+    {
+      "timestamp": "2025-09-30T09:49:26.839929",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09127664566040039,
+      "fps": 10.955704964450087
+    },
+    {
+      "timestamp": "2025-09-30T09:49:26.967196",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0914304256439209,
+      "fps": 10.93727818674427
+    },
+    {
+      "timestamp": "2025-09-30T09:49:27.087750",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09351730346679688,
+      "fps": 10.693208239853151
+    },
+    {
+      "timestamp": "2025-09-30T09:49:27.207850",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08648276329040527,
+      "fps": 11.562997780749031
+    },
+    {
+      "timestamp": "2025-09-30T09:49:27.335025",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08896493911743164,
+      "fps": 11.24038312081598
+    },
+    {
+      "timestamp": "2025-09-30T09:49:27.467055",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0985257625579834,
+      "fps": 10.149629640384564
+    },
+    {
+      "timestamp": "2025-09-30T09:49:27.595668",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08552908897399902,
+      "fps": 11.69192858237975
+    },
+    {
+      "timestamp": "2025-09-30T09:49:27.731801",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09422779083251953,
+      "fps": 10.612580335003289
+    },
+    {
+      "timestamp": "2025-09-30T09:49:27.844395",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08408999443054199,
+      "fps": 11.892021241908823
+    },
+    {
+      "timestamp": "2025-09-30T09:49:27.971429",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08800840377807617,
+      "fps": 11.36255126864499
+    },
+    {
+      "timestamp": "2025-09-30T09:49:28.082201",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0825202465057373,
+      "fps": 12.118238157837713
+    },
+    {
+      "timestamp": "2025-09-30T09:49:28.197511",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08752322196960449,
+      "fps": 11.425539159736202
+    },
+    {
+      "timestamp": "2025-09-30T09:49:28.317558",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08852887153625488,
+      "fps": 11.29574999259393
+    },
+    {
+      "timestamp": "2025-09-30T09:49:28.431586",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0854499340057373,
+      "fps": 11.702759184493434
+    },
+    {
+      "timestamp": "2025-09-30T09:49:28.539405",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.07952666282653809,
+      "fps": 12.57439913178778
+    },
+    {
+      "timestamp": "2025-09-30T09:49:28.657413",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09050679206848145,
+      "fps": 11.048894532062917
+    },
+    {
+      "timestamp": "2025-09-30T09:49:28.772275",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.07900500297546387,
+      "fps": 12.65742626844232
+    },
+    {
+      "timestamp": "2025-09-30T09:49:28.899093",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09665656089782715,
+      "fps": 10.345909172757255
+    },
+    {
+      "timestamp": "2025-09-30T09:49:29.021225",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09306979179382324,
+      "fps": 10.744624874796024
+    },
+    {
+      "timestamp": "2025-09-30T09:49:29.141295",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09144711494445801,
+      "fps": 10.935282109308394
+    },
+    {
+      "timestamp": "2025-09-30T09:49:29.271615",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09400153160095215,
+      "fps": 10.638124538705611
+    },
+    {
+      "timestamp": "2025-09-30T09:49:29.392154",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08950591087341309,
+      "fps": 11.172446492548247
+    },
+    {
+      "timestamp": "2025-09-30T09:49:29.506190",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08551907539367676,
+      "fps": 11.693297611049003
+    },
+    {
+      "timestamp": "2025-09-30T09:49:29.624220",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0875082015991211,
+      "fps": 11.427500299698123
+    },
+    {
+      "timestamp": "2025-09-30T09:49:29.753262",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09251737594604492,
+      "fps": 10.808780402323436
+    },
+    {
+      "timestamp": "2025-09-30T09:49:29.883803",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09552407264709473,
+      "fps": 10.468565381361115
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.001812",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0902395248413086,
+      "fps": 11.081618633947349
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.124397",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08787703514099121,
+      "fps": 11.379537309099986
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.238567",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08351349830627441,
+      "fps": 11.974112212766322
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.354800",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08870720863342285,
+      "fps": 11.273041000900381
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.464035",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08157205581665039,
+      "fps": 12.259100129187638
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.584773",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09202718734741211,
+      "fps": 10.866354050623073
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.699809",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08551216125488281,
+      "fps": 11.6942430798742
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.818978",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09145021438598633,
+      "fps": 10.934911489428266
+    },
+    {
+      "timestamp": "2025-09-30T09:49:30.936012",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08951878547668457,
+      "fps": 11.170839669852905
+    },
+    {
+      "timestamp": "2025-09-30T09:49:31.058458",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09229683876037598,
+      "fps": 10.834607267495176
+    },
+    {
+      "timestamp": "2025-09-30T09:49:31.191426",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09351301193237305,
+      "fps": 10.693698976599986
+    },
+    {
+      "timestamp": "2025-09-30T09:49:31.302466",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08451199531555176,
+      "fps": 11.83263980771238
+    },
+    {
+      "timestamp": "2025-09-30T09:49:31.423522",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0908670425415039,
+      "fps": 11.005090206861809
+    },
+    {
+      "timestamp": "2025-09-30T09:49:31.537289",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08525323867797852,
+      "fps": 11.729759660829245
+    },
+    {
+      "timestamp": "2025-09-30T09:49:31.660458",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0946660041809082,
+      "fps": 10.563454205682797
+    },
+    {
+      "timestamp": "2025-09-30T09:49:31.781491",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09299826622009277,
+      "fps": 10.752888635938298
+    },
+    {
+      "timestamp": "2025-09-30T09:49:31.903027",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09387969970703125,
+      "fps": 10.651930109711499
+    },
+    {
+      "timestamp": "2025-09-30T09:49:32.022047",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09051036834716797,
+      "fps": 11.048457964112236
+    },
+    {
+      "timestamp": "2025-09-30T09:49:32.188584",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.13802433013916016,
+      "fps": 7.245099461752655
+    },
+    {
+      "timestamp": "2025-09-30T09:49:32.313915",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09681820869445801,
+      "fps": 10.328635630471453
+    },
+    {
+      "timestamp": "2025-09-30T09:49:32.429949",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08751034736633301,
+      "fps": 11.427220095628602
+    },
+    {
+      "timestamp": "2025-09-30T09:49:32.546279",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08662128448486328,
+      "fps": 11.544506710411873
+    },
+    {
+      "timestamp": "2025-09-30T09:49:32.669954",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0972285270690918,
+      "fps": 10.285047301903356
+    },
+    {
+      "timestamp": "2025-09-30T09:49:32.793084",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09341764450073242,
+      "fps": 10.704615871492667
+    },
+    {
+      "timestamp": "2025-09-30T09:49:32.910324",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0866234302520752,
+      "fps": 11.544220739007775
+    },
+    {
+      "timestamp": "2025-09-30T09:49:33.043736",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10444307327270508,
+      "fps": 9.574593782672018
+    },
+    {
+      "timestamp": "2025-09-30T09:49:33.170769",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09551668167114258,
+      "fps": 10.469375427456031
+    },
+    {
+      "timestamp": "2025-09-30T09:49:33.295463",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09252214431762695,
+      "fps": 10.808223343451887
+    },
+    {
+      "timestamp": "2025-09-30T09:49:33.419498",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09451484680175781,
+      "fps": 10.580348313926503
+    },
+    {
+      "timestamp": "2025-09-30T09:49:33.546539",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09651875495910645,
+      "fps": 10.36068068246099
+    },
+    {
+      "timestamp": "2025-09-30T09:49:33.709926",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.13488054275512695,
+      "fps": 7.413967793823909
+    },
+    {
+      "timestamp": "2025-09-30T09:49:33.836975",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09953784942626953,
+      "fps": 10.04642963218457
+    },
+    {
+      "timestamp": "2025-09-30T09:49:33.954796",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08851051330566406,
+      "fps": 11.298092877922638
+    },
+    {
+      "timestamp": "2025-09-30T09:49:34.079821",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09351325035095215,
+      "fps": 10.693671712265726
+    },
+    {
+      "timestamp": "2025-09-30T09:49:34.201855",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0915215015411377,
+      "fps": 10.926394160507881
+    },
+    {
+      "timestamp": "2025-09-30T09:49:34.321885",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08950114250183105,
+      "fps": 11.173041729378388
+    },
+    {
+      "timestamp": "2025-09-30T09:49:34.445638",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08623218536376953,
+      "fps": 11.596598135388904
+    },
+    {
+      "timestamp": "2025-09-30T09:49:34.572060",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09625792503356934,
+      "fps": 10.388755000185766
+    },
+    {
+      "timestamp": "2025-09-30T09:49:34.708366",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10651683807373047,
+      "fps": 9.388187051776777
+    },
+    {
+      "timestamp": "2025-09-30T09:49:34.825976",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08951544761657715,
+      "fps": 11.171256209132919
+    },
+    {
+      "timestamp": "2025-09-30T09:49:34.998307",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.13781189918518066,
+      "fps": 7.256267462479997
+    },
+    {
+      "timestamp": "2025-09-30T09:49:35.164303",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.13693499565124512,
+      "fps": 7.302735106129221
+    },
+    {
+      "timestamp": "2025-09-30T09:49:35.283489",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08952498435974121,
+      "fps": 11.170066179309977
+    },
+    {
+      "timestamp": "2025-09-30T09:49:35.400019",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08851838111877441,
+      "fps": 11.297088665214007
+    },
+    {
+      "timestamp": "2025-09-30T09:49:35.527049",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0905148983001709,
+      "fps": 11.047905027565081
+    },
+    {
+      "timestamp": "2025-09-30T09:49:35.644087",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08850955963134766,
+      "fps": 11.298214612806948
+    },
+    {
+      "timestamp": "2025-09-30T09:49:35.758640",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08803248405456543,
+      "fps": 11.359443173046975
+    },
+    {
+      "timestamp": "2025-09-30T09:49:35.877075",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09139037132263184,
+      "fps": 10.94207174703054
+    },
+    {
+      "timestamp": "2025-09-30T09:49:35.998312",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0933229923248291,
+      "fps": 10.715472951395542
+    },
+    {
+      "timestamp": "2025-09-30T09:49:36.118434",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09126663208007812,
+      "fps": 10.956907001044932
+    },
+    {
+      "timestamp": "2025-09-30T09:49:36.246242",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09345197677612305,
+      "fps": 10.700683222524402
+    },
+    {
+      "timestamp": "2025-09-30T09:49:36.356790",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0825192928314209,
+      "fps": 12.118378208147098
+    },
+    {
+      "timestamp": "2025-09-30T09:49:36.473441",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08800864219665527,
+      "fps": 11.362520487084671
+    },
+    {
+      "timestamp": "2025-09-30T09:49:36.600542",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0985116958618164,
+      "fps": 10.151078927752016
+    },
+    {
+      "timestamp": "2025-09-30T09:49:36.717576",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08951020240783691,
+      "fps": 11.171910833624109
+    },
+    {
+      "timestamp": "2025-09-30T09:49:36.842614",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09652471542358398,
+      "fps": 10.360040903634397
+    },
+    {
+      "timestamp": "2025-09-30T09:49:36.958703",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08650565147399902,
+      "fps": 11.559938373512738
+    },
+    {
+      "timestamp": "2025-09-30T09:49:37.070731",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08400321006774902,
+      "fps": 11.904306980572466
+    },
+    {
+      "timestamp": "2025-09-30T09:49:37.189394",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09063959121704102,
+      "fps": 11.032706420811742
+    },
+    {
+      "timestamp": "2025-09-30T09:49:37.306108",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0890812873840332,
+      "fps": 11.225702157726545
+    },
+    {
+      "timestamp": "2025-09-30T09:49:37.423674",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08904099464416504,
+      "fps": 11.230782000990722
+    },
+    {
+      "timestamp": "2025-09-30T09:49:37.533039",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.07996582984924316,
+      "fps": 12.505341367497413
+    },
+    {
+      "timestamp": "2025-09-30T09:49:37.659614",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09300613403320312,
+      "fps": 10.751979000041015
+    },
+    {
+      "timestamp": "2025-09-30T09:49:37.784178",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09752321243286133,
+      "fps": 10.253969030075151
+    },
+    {
+      "timestamp": "2025-09-30T09:49:37.921286",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09652447700500488,
+      "fps": 10.360066493270397
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.035332",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08653092384338379,
+      "fps": 11.556562158170701
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.150598",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08708834648132324,
+      "fps": 11.482592567243858
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.268637",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08951377868652344,
+      "fps": 11.171464490422109
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.390162",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09130477905273438,
+      "fps": 10.952329224984332
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.505191",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08752131462097168,
+      "fps": 11.425788156070293
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.627261",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09249186515808105,
+      "fps": 10.81176164293871
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.744567",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08850955963134766,
+      "fps": 11.298214612806948
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.852584",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08050870895385742,
+      "fps": 12.421016471312907
+    },
+    {
+      "timestamp": "2025-09-30T09:49:38.983381",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10128140449523926,
+      "fps": 9.873480773531385
+    },
+    {
+      "timestamp": "2025-09-30T09:49:39.104886",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0819852352142334,
+      "fps": 12.197318180364148
+    },
+    {
+      "timestamp": "2025-09-30T09:49:39.218799",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08550810813903809,
+      "fps": 11.694797391306773
+    },
+    {
+      "timestamp": "2025-09-30T09:49:39.340823",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09090900421142578,
+      "fps": 11.000010490427485
+    },
+    {
+      "timestamp": "2025-09-30T09:49:39.454953",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08596372604370117,
+      "fps": 11.63281358339019
+    },
+    {
+      "timestamp": "2025-09-30T09:49:39.585571",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09058690071105957,
+      "fps": 11.039123671861223
+    },
+    {
+      "timestamp": "2025-09-30T09:49:39.704606",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08852362632751465,
+      "fps": 11.296419289244401
+    },
+    {
+      "timestamp": "2025-09-30T09:49:39.822845",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09067058563232422,
+      "fps": 11.028935051275308
+    },
+    {
+      "timestamp": "2025-09-30T09:49:39.953102",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10046911239624023,
+      "fps": 9.953307799277642
+    },
+    {
+      "timestamp": "2025-09-30T09:49:40.075957",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09323883056640625,
+      "fps": 10.725145241796907
+    },
+    {
+      "timestamp": "2025-09-30T09:49:40.189562",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08557724952697754,
+      "fps": 11.6853486823593
+    },
+    {
+      "timestamp": "2025-09-30T09:49:40.305422",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08743715286254883,
+      "fps": 11.436785934372768
+    },
+    {
+      "timestamp": "2025-09-30T09:49:40.420476",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08652639389038086,
+      "fps": 11.55716718377154
+    },
+    {
+      "timestamp": "2025-09-30T09:49:40.534319",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08624649047851562,
+      "fps": 11.594674687071521
+    },
+    {
+      "timestamp": "2025-09-30T09:49:40.658344",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08951306343078613,
+      "fps": 11.171553756209299
+    },
+    {
+      "timestamp": "2025-09-30T09:49:40.780949",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09408283233642578,
+      "fps": 10.628931710135525
+    },
+    {
+      "timestamp": "2025-09-30T09:49:40.898697",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08958888053894043,
+      "fps": 11.162099514853777
+    },
+    {
+      "timestamp": "2025-09-30T09:49:41.025716",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09850931167602539,
+      "fps": 10.151324610700472
+    },
+    {
+      "timestamp": "2025-09-30T09:49:41.145323",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09050750732421875,
+      "fps": 11.04880721571272
+    },
+    {
+      "timestamp": "2025-09-30T09:49:41.267709",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09387874603271484,
+      "fps": 10.652038318146262
+    },
+    {
+      "timestamp": "2025-09-30T09:49:41.385361",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08604979515075684,
+      "fps": 11.621178159088327
+    },
+    {
+      "timestamp": "2025-09-30T09:49:41.509845",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09650707244873047,
+      "fps": 10.361934878205444
+    },
+    {
+      "timestamp": "2025-09-30T09:49:41.641524",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10050702095031738,
+      "fps": 9.9495536783875
+    },
+    {
+      "timestamp": "2025-09-30T09:49:41.841057",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10349392890930176,
+      "fps": 9.662402524851124
+    },
+    {
+      "timestamp": "2025-09-30T09:49:42.031595",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.11451077461242676,
+      "fps": 8.73280268502768
+    },
+    {
+      "timestamp": "2025-09-30T09:49:42.150089",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.08902907371520996,
+      "fps": 11.232285794625282
+    },
+    {
+      "timestamp": "2025-09-30T09:49:42.269058",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.0914461612701416,
+      "fps": 10.93539615124898
+    },
+    {
+      "timestamp": "2025-09-30T09:49:42.387388",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09154438972473145,
+      "fps": 10.923662312971235
+    },
+    {
+      "timestamp": "2025-09-30T09:49:42.560183",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.14173603057861328,
+      "fps": 7.0553690259115465
+    },
+    {
+      "timestamp": "2025-09-30T09:49:42.700347",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10965633392333984,
+      "fps": 9.119400259168748
+    },
+    {
+      "timestamp": "2025-09-30T09:49:42.828855",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09999251365661621,
+      "fps": 10.000748690387912
+    },
+    {
+      "timestamp": "2025-09-30T09:49:42.955927",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09803557395935059,
+      "fps": 10.200378899343614
+    },
+    {
+      "timestamp": "2025-09-30T09:49:43.091584",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10631728172302246,
+      "fps": 9.405808574049116
+    },
+    {
+      "timestamp": "2025-09-30T09:49:43.221957",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09937214851379395,
+      "fps": 10.063181836721473
+    },
+    {
+      "timestamp": "2025-09-30T09:49:43.353982",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10151004791259766,
+      "fps": 9.851241532867974
+    },
+    {
+      "timestamp": "2025-09-30T09:49:43.495889",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.11083245277404785,
+      "fps": 9.02262807481742
+    },
+    {
+      "timestamp": "2025-09-30T09:49:43.618418",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09471487998962402,
+      "fps": 10.558003136461236
+    },
+    {
+      "timestamp": "2025-09-30T09:49:43.766922",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.11651325225830078,
+      "fps": 8.582714675091879
+    },
+    {
+      "timestamp": "2025-09-30T09:49:43.897451",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.10251116752624512,
+      "fps": 9.755034735547012
+    },
+    {
+      "timestamp": "2025-09-30T09:49:44.015880",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.090911865234375,
+      "fps": 10.99966431688486
+    },
+    {
+      "timestamp": "2025-09-30T09:49:44.142910",
+      "detections": 1,
+      "sleepy_detected": false,
+      "processing_time": 0.09798336029052734,
+      "fps": 10.205814508044345
+    }
+  ],
+  "final_stats": {
+    "runtime_seconds": 51.79265117645264,
+    "total_frames": 318,
+    "total_detections": 318,
+    "sleepy_detections": 0,
+    "average_fps": 10.629102857713974,
+    "average_processing_time": 0.09526093482971192,
+    "frames_per_detection": 1.0
+  }
+}

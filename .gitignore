@@ -35,3 +35,11 @@ yolo-sleepy-allinone-final/datasets/sleepy_pose/val/
 
 # Logs
 *.log
+
+# Embedded git repositories
+yolov5/
+
+# Auto-collected data directories (keep structure, ignore content)
+auto_collected_data/
+auto_videos/
+auto_video_frames/

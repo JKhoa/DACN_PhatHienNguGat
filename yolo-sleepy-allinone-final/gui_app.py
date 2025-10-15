@@ -14,6 +14,14 @@ try:
 except Exception:
     mp = None  # type: ignore
 
+# Import multi-camera widget
+try:
+    from multi_camera_gui import MultiCameraWidget
+    HAS_MULTI_CAMERA = True
+except ImportError:
+    HAS_MULTI_CAMERA = False
+    MultiCameraWidget = None
+
 from PyQt5.QtCore import Qt, QTimer, QSize
 from PyQt5.QtGui import QImage, QPixmap, QKeySequence
 from PyQt5.QtWidgets import (
@@ -282,6 +290,31 @@ class SleepyWindow(QMainWindow):
         self.setWindowTitle("Sleepy Detection — Classroom Edition")
         self.args = args
 
+        # Robust model fallback (mirror CLI logic) BEFORE loading pose model
+        try:
+            base_dir = os.path.dirname(__file__)
+            if not os.path.exists(self.args.model):
+                print(f"⚠️  (GUI) Model không tồn tại: {self.args.model}")
+                # Candidate local models to try (ordered)
+                candidates = [
+                    os.path.join(base_dir, "yolo11n-pose.pt"),
+                    os.path.join(base_dir, "yolo11s-pose.pt"),
+                    os.path.join(base_dir, "yolo11m-pose.pt"),
+                    os.path.join(os.path.dirname(base_dir), "yolo11n-pose.pt"),  # parent repo root copy
+                    os.path.join(os.path.dirname(base_dir), "yolo11s-pose.pt"),
+                ]
+                for c in candidates:
+                    if os.path.exists(c):
+                        print(f"✅ (GUI) Fallback dùng model: {c}")
+                        self.args.model = c
+                        break
+                else:
+                    # Final fallback to alias that Ultralytics can auto-download
+                    print("🔽 (GUI) Không tìm thấy weights nội bộ, dùng alias 'yolo11n-pose.pt' để tự tải.")
+                    self.args.model = "yolo11n-pose.pt"
+        except Exception as e:
+            print(f"❌ (GUI) Lỗi trong bước fallback model: {e}")
+
         # Models
         self.pose_model = YOLO(self.args.model)
         self.eye_model = None
@@ -450,10 +483,14 @@ class SleepyWindow(QMainWindow):
         self.btn_choose_logo = QPushButton("Chọn Logo…")
         self.btn_choose_logo.setCursor(Qt.PointingHandCursor)  # type: ignore[attr-defined]
         self.btn_choose_logo.clicked.connect(self.on_choose_logo)
+        # After header construction add quick multi-cam button
+        self.btn_goto_multi = QPushButton("Multi-Cam ▶")
+        self.btn_goto_multi.setToolTip("Chuyển nhanh tới tab Multi-Camera")
         hbox.addWidget(self.logo_label, 0)
         hbox.addWidget(self.header_title, 1)
         hbox.addWidget(self.header_model_combo, 0)
         hbox.addWidget(self.btn_choose_logo, 0)
+        hbox.addWidget(self.btn_goto_multi, 0)
 
         # Camera Tab
         cam_tab = QWidget()
@@ -541,6 +578,31 @@ class SleepyWindow(QMainWindow):
         v.addWidget(self.stats_label); v.addWidget(self.log_text)
         tabs.addTab(log_tab, "Logs")
 
+        # Multi-Camera Tab
+        if HAS_MULTI_CAMERA:
+            try:
+                self.multi_camera_widget = MultiCameraWidget(model_path=self.args.model, parent=self)
+                tabs.addTab(self.multi_camera_widget, "📹 Multi-Camera")
+            except Exception as e:
+                print(f"Failed to create multi-camera tab: {e}")
+                self.multi_camera_widget = None
+        else:
+            # Fallback placeholder without shadowing global name
+            class _MultiCameraPlaceholder(QWidget):
+                def __init__(self):
+                    super().__init__()
+                    l = QVBoxLayout(self)
+                    msg = QLabel(
+                        "<b>Multi-Camera module not loaded.</b><br>"
+                        "File <code>multi_camera_gui.py</code> bị lỗi hoặc thiếu phụ thuộc.<br>"
+                        "Bạn vẫn có thể dùng nguồn đơn ở tab Source.<br><br>"
+                        "Kiểm tra: ultralytics, opencv-python, PyQt5."
+                    )
+                    msg.setWordWrap(True)
+                    l.addWidget(msg, 0, Qt.AlignTop)  # type: ignore[attr-defined]
+            self.multi_camera_widget = _MultiCameraPlaceholder()
+            tabs.addTab(self.multi_camera_widget, "📹 Multi-Camera")
+
         # Assemble right side
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
@@ -569,6 +631,26 @@ class SleepyWindow(QMainWindow):
         # Sync header and settings combos both ways without loops
         self.header_model_combo.currentTextChanged.connect(self.on_header_model_changed)
         self.model_combo.currentTextChanged.connect(self.on_settings_model_changed)
+        # After tabs created, wire button
+        try:
+            self.btn_goto_multi.clicked.connect(lambda: self._focus_multi_tab())
+        except Exception:
+            pass
+
+    def _focus_multi_tab(self):
+        try:
+            # Find QTabWidget among children
+            tabs = self.findChildren(QTabWidget)
+            if not tabs:
+                return
+            tw = tabs[0]
+            # Look for index containing 'Multi-Camera'
+            for i in range(tw.count()):
+                if 'Multi-Camera' in tw.tabText(i):
+                    tw.setCurrentIndex(i)
+                    break
+        except Exception:
+            pass
 
     def _resolve_preset_path(self, preset_name: str) -> str:
         # Returns a local path or model alias; auto-fallback to existing local weights when possible
@@ -1007,8 +1089,16 @@ class SleepyWindow(QMainWindow):
                 if len(hq) >= 3:
                     ang = float(np.median(np.array(hq)))
 
+
+                # --- Smart drowsiness detection state machine ---
+                # States: AWAKE, DROWSY, SLEEPY, WAKING, RECOVERED
+                # Map to Vietnamese for UI: "Bình thường", "Ngủ gật", "Gục xuống bàn", "Thức dậy"
+                prev_status = self.sleep_status.get(tid, "Bình thường")
+                now = time.time()
+                # State counters
                 prev_sleep = self.sleep_states.get(tid, 0)
                 prev_awake = self.awake_states.get(tid, 0)
+                # State machine logic
                 if state in ("Ngủ gật", "Gục xuống bàn"):
                     self.sleep_states[tid] = prev_sleep + 1
                     self.awake_states[tid] = 0
@@ -1016,21 +1106,25 @@ class SleepyWindow(QMainWindow):
                     self.awake_states[tid] = prev_awake + 1
                     self.sleep_states[tid] = 0
 
-                prev_status = self.sleep_status.get(tid, "Bình thường")
-                now = time.time()
+                # Determine effective state
                 eff_state = prev_status
                 if prev_status in ("Ngủ gật", "Gục xuống bàn"):
                     if state not in ("Ngủ gật", "Gục xuống bàn") and self.awake_states[tid] >= self.AWAKE_FRAMES:
+                        eff_state = "Thức dậy"
+                elif prev_status == "Thức dậy":
+                    # After waking, return to normal after a few frames
+                    if self.awake_states[tid] >= self.AWAKE_FRAMES:
                         eff_state = "Bình thường"
                 else:
                     if state in ("Ngủ gật", "Gục xuống bàn") and self.sleep_states[tid] >= self.SLEEP_FRAMES:
                         eff_state = state
 
+                # Event logging and transitions
                 if prev_status != eff_state:
                     if eff_state in ("Ngủ gật", "Gục xuống bàn"):
                         self.sleep_start_time[tid] = now
                         self.append_log(f"[{time.strftime('%H:%M:%S')}] ID {tid}: {eff_state}")
-                    elif prev_status in ("Ngủ gật", "Gục xuống bàn") and eff_state == "Bình thường":
+                    elif eff_state == "Thức dậy":
                         if tid in self.sleep_start_time:
                             duration = now - self.sleep_start_time[tid]
                             self.max_sleep_duration[tid] = max(self.max_sleep_duration.get(tid, 0.0), duration)

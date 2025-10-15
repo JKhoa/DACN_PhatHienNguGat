@@ -1,0 +1,23 @@
+{
+  "auto_quality_adjust": true,
+  "auto_save": true,
+  "batch_processing": false,
+  "confidence_threshold": 0.5,
+  "enable_animations": true,
+  "enable_gpu": false,
+  "eye_closed_threshold": 3.0,
+  "head_tilt_threshold": 0.3,
+  "iou_threshold": 0.45,
+  "max_cpu_usage": 80.0,
+  "model_path": "yolo11n-pose.pt",
+  "output_dir": "outputs",
+  "save_detections": true,
+  "save_video": false,
+  "show_confidence": true,
+  "show_fps": true,
+  "show_status": true,
+  "sleepy_sensitivity": 0.8,
+  "target_fps": 30,
+  "theme": "blue",
+  "yawn_detection": true
+}
