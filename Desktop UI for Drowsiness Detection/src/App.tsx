@@ -40,6 +40,43 @@ export default function App() {
     reconnectCount: 0,
   });
 
+  // Initialize YOLO detector on app startup
+  useEffect(() => {
+    const initializeYOLO = async () => {
+      try {
+        console.log('Initializing YOLO detector...');
+        const response = await fetch('http://127.0.0.1:5000/api/detection/initialize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ model_path: 'yolo11n-pose.pt' }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            console.log('YOLO detector initialized successfully');
+            toast.success('YOLO detector đã được khởi tạo');
+          } else {
+            console.error('Failed to initialize YOLO detector:', data.error);
+            toast.error('Không thể khởi tạo YOLO detector');
+          }
+        } else {
+          console.error('Failed to initialize YOLO detector');
+          toast.error('Không thể kết nối với backend để khởi tạo YOLO');
+        }
+      } catch (error) {
+        console.error('Error initializing YOLO detector:', error);
+        toast.error('Lỗi khi khởi tạo YOLO detector');
+      }
+    };
+
+    // Initialize YOLO after a short delay to ensure backend is ready
+    const timer = setTimeout(initializeYOLO, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Auto-detect camera on app startup
   useEffect(() => {
     const autoDetectCamera = async () => {

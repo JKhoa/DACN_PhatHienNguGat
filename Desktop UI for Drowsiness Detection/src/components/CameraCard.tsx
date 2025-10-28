@@ -23,9 +23,11 @@ import {
   AlertCircle,
   Loader2,
   Users,
+  Brain,
 } from 'lucide-react';
 import { cn } from './ui/utils';
 import { StudentTrackingDetails } from './StudentTrackingDetails';
+import { YOLODetectionPanel } from './YOLODetectionPanel';
 import { acquireWebcam, releaseWebcam, mapGetUserMediaError, forceReleaseAllWebcams, getAvailableCameras, requestCameraPermission, detectWorkingCamera } from '../lib/webcamRegistry';
 
 interface CameraCardProps {
@@ -66,6 +68,8 @@ export function CameraCard({
   const [localError, setLocalError] = useState<string | null>(null);
   const [lastIpFrameUrl, setLastIpFrameUrl] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [showYOLOPanel, setShowYOLOPanel] = useState(false);
+  const [yoloDetectionEnabled, setYoloDetectionEnabled] = useState(false);
 
   // Load available cameras on mount
   useEffect(() => {
@@ -414,6 +418,10 @@ export function CameraCard({
                 <Users className="h-4 w-4 mr-2" />
                 {showTrackingDetails ? 'Ẩn' : 'Hiện'} Chi tiết Tracking
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowYOLOPanel(!showYOLOPanel)}>
+                <Brain className="h-4 w-4 mr-2" />
+                {showYOLOPanel ? 'Ẩn' : 'Hiện'} YOLO Detection
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onPopOut(camera.id)}>
                 <Maximize2 className="h-4 w-4 mr-2" />
@@ -543,6 +551,17 @@ export function CameraCard({
             students={camera.students}
             cameraName={camera.name}
             isActive={camera.isRunning}
+          />
+        </div>
+      )}
+
+      {/* YOLO Detection Panel */}
+      {showYOLOPanel && (
+        <div className="p-4 border-t">
+          <YOLODetectionPanel
+            cameraId={camera.id}
+            isEnabled={yoloDetectionEnabled}
+            onToggleDetection={setYoloDetectionEnabled}
           />
         </div>
       )}

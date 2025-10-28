@@ -589,3 +589,141 @@ python collect_data.py --stats     # Xem thống kê
 2. Thu thập batch đầu tiên 50-100 ảnh
 3. Kiểm tra chất lượng auto-labeling
 4. Retrain model với dataset mở rộng
+- Kế hoạch & rủi ro: tiến độ theo tuần; rủi ro riêng tư/dữ liệu/thiết bị; phương án giảm thiểu (ẩn danh, mờ mặt, cài đặt quyền). 
+
+
+
+### B) Kế hoạch dữ liệu & target số lượng
+
+- Mục tiêu tối thiểu (đợt 1): ~1,500–2,000 ảnh gán keypoints, phân bố lớp tương đối cân bằng.
+
+  - binhthuong: ~700
+
+  - ngugat: ~600
+
+  - gucxuongban: ~300–500
+
+- Split: train 80% / val 10% / test 10% (theo cảnh để giảm rò rỉ). 
+
+- Video → frame extraction: 2–3 fps cho cảnh ổn định để tránh trùng lặp quá nhiều.
+
+- Quy định chú thích: mũi/2 vai/… theo COCO; trạng thái gán theo khung hình dựa vào tư thế.
+
+
+
+### C) Tiền xử lý & Augmentation
+
+- Resize theo imgsz (512–960), letterbox.
+
+- Photometric: brightness/contrast/gamma; color jitter nhẹ.
+
+- Geometric: flip ngang; rotate nhẹ (±10°) nếu phù hợp; blur nhẹ.
+
+- Cutout/mosaic (thử sau) — theo dõi tác động đến keypoints.
+
+
+
+### D) Cấu hình huấn luyện (gợi ý)
+
+- Mô hình: `yolo11n-pose.pt` (CPU) hoặc `yolo11s-pose.pt` (GPU).
+
+- imgsz: 640 (thử thêm 512/736/960 để cân bằng FPS/độ chính xác).
+
+- Epochs: 80–150 (theo độ hội tụ).
+
+- Early stopping & Cosine LR; batch theo RAM/GPU.
+
+- Theo dõi: train/val loss, mAP50/95, PR/RC per class.
+
+
+
+### E) Quy trình đánh giá
+
+- Tập test độc lập theo cảnh; chạy infer → tính mAP50/95, Precision, Recall.
+
+- Lưu confusion matrix, PR/RC curve; so sánh các biến thể (n-pose vs s-pose; imgsz khác nhau).
+
+- Báo cáo FPS trung bình (CPU/GPU), độ trễ, mức sử dụng tài nguyên.
+
+
+
+### F) Ứng dụng: kiểm checklist tính năng
+
+- [x] Kết nối camera/video; [x] đọc ảnh tĩnh; [x] lưu video đã gán nhãn.
+
+- [x] Overlay VN: nhãn trạng thái nổi bật, HUD FPS; [x] panel log; [x] panel mắt/ngáp (tùy chọn).
+
+- [x] Tracking IoU + hysteresis; [x] person limit; [x] drop_bb_ratio cho ca cúi mặt.
+
+- [x] GUI PyQt5: chọn nguồn, tham số; [ ] thêm control lưu cấu hình/nguồn mặc định; [ ] chụp ảnh nhanh (snapshot) từ GUI.
+
+
+
+### G) Rủi ro & giảm thiểu
+
+- Riêng tư & đạo đức: xin phép quay; ẩn danh; lưu tối thiểu; mã hóa/giới hạn truy cập.
+
+- Môi trường ánh sáng/che khuất: tăng dữ liệu ca khó; tinh chỉnh ngưỡng; dùng eyes/yawn hỗ trợ.
+
+- Hiệu năng CPU thấp: dùng `yolo11n-pose`, giảm imgsz, MJPG, hoặc GPU/ONNX/TensorRT.
+
+
+
+### H) Lộ trình ngắn hạn (2–4 tuần)
+
+- Tuần 1: hoàn thiện đề cương; hướng dẫn gán nhãn; bắt đầu thu thập dữ liệu đợt 1.
+
+- Tuần 2: gán nhãn & QC; train baseline (v11n-pose @640); đánh giá bước đầu.
+
+- Tuần 3: mở rộng dữ liệu ca khó; tinh chỉnh ngưỡng/augment; thử v11s-pose (GPU nếu có).
+
+- Tuần 4: tổng hợp số liệu mAP/PR/RC/FPS; hoàn thiện báo cáo PDF + demo GUI.
+
+
+---
+
+## 📊 Cập Nhật Mới Nhất (Phase 5 - Automated Collection Tools)
+
+### ✅ Hoàn thành Phase 5: Công Cụ Thu Thập Tự Động
+**Ngày**: 2025-01-08
+
+#### Công cụ được tạo:
+1. **`download_images.py`**: Script tải ảnh từ URLs miễn phí
+   - Hỗ trợ Pexels, Unsplash, Pixabay URLs
+   - Retry logic và error handling  
+   - Hướng dẫn chi tiết lấy URL trực tiếp
+   - Validation kích thước file
+
+2. **`collect_data.py` nâng cấp**: Công cụ tổng hợp hoàn chỉnh
+   - `--download`: Tích hợp download_images.py
+   - `--full-pipeline`: Quy trình hoàn chỉnh tự động
+   - Thống kê chi tiết theo nguồn ảnh
+   - Hỗ trợ video frame extraction
+
+3. **Tài liệu hướng dẫn**:
+   - `README_DATA_COLLECTION.md`: Hướng dẫn sử dụng đầy đủ
+   - `EXAMPLE_URLS.md`: Ví dụ cụ thể và templates
+   - Integration với DATA_COLLECTION_GUIDE.md hiện có
+
+#### Workflow được tối ưu:
+```bash
+# Quy trình thu thập hoàn chỉnh
+python collect_data.py --full-pipeline
+
+# Hoặc từng bước:
+python download_images.py          # Tải ảnh từ URLs
+python collect_data.py --copy      # Sao chép về data_raw  
+python collect_data.py --auto-label # Tạo labels tự động
+python collect_data.py --stats     # Xem thống kê
+```
+
+#### Tiến độ dataset:
+- **Hiện tại**: 27 ảnh (19 gốc + 8 khác)
+- **Mục tiêu**: 300-400 ảnh
+- **Cần thêm**: ~273-373 ảnh
+
+#### Next Steps:
+1. Cấu hình URLs thực tế vào download_images.py
+2. Thu thập batch đầu tiên 50-100 ảnh
+3. Kiểm tra chất lượng auto-labeling
+4. Retrain model với dataset mở rộng
