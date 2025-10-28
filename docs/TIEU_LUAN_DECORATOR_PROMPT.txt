@@ -1,0 +1,570 @@
+PROMPT TẠO BÁO CÁO TIỂU LUẬN KHOA HỌC 40–60 TRANG (WORD) – DECORATOR PATTERN TRONG HỆ THỐNG PHÁT HIỆN NGỦ GẬT
+
+Mục tiêu đầu ra
+- Sinh một tài liệu Word (.docx) 40–60 trang, tiếng Việt, phong cách học thuật, có mục lục tự động, danh mục hình/bảng, đánh số hình/bảng, trích dẫn và danh mục tài liệu tham khảo chuẩn IEEE/APA.
+- Chủ đề: Áp dụng Decorator Pattern (Structural – GoF) trong dự án thực tế “Hệ thống phát hiện ngủ gật cho lớp học (YOLO Sleepy Detection)” trong repo DACN_PhatHienNguGat.
+- Tài liệu cần có: Nội dung lý thuyết, mô hình thiết kế (UML), triển khai mã nguồn minh họa (Python), đánh giá – so sánh (trước/sau), kết luận & hướng phát triển, tài liệu tham khảo.
+
+Yêu cầu trình bày & định dạng
+- Ngôn ngữ: Tiếng Việt trang trọng, học thuật, mạch lạc, có dẫn chứng.
+- Phông chữ: Times New Roman / Cambria / Calibri, cỡ 12; giãn dòng 1.15–1.5; căn lề 2.5 cm; canh đều.
+- Trang bìa: Tên đề tài, tác giả, đơn vị, thời gian, môn học/hướng dẫn (nếu có).
+- Mục lục, Danh mục hình, Danh mục bảng: tạo tự động.
+- Đánh số chương, mục: I, II, III…; 1.1, 1.2, …; Hình 1, Bảng 1…
+- Chèn hình minh họa, sơ đồ, biểu đồ. Với UML, cung cấp cả mã PlantUML để có thể tái tạo.
+- Mã nguồn (Python) trình bày trong khối code, có chú thích; trích đoạn quan trọng từ dự án.
+- Trích dẫn trong nội dung [1], [2]… tương ứng danh mục tài liệu tham khảo cuối tài liệu.
+
+Cấu trúc & dung lượng mục tiêu (40–60 trang)
+I. Giới thiệu (5–8 trang)
+  1. Bối cảnh & động lực: an toàn lớp học, theo dõi tình trạng buồn ngủ; nhu cầu đa camera, độ trễ thấp, độ chính xác cao.
+  2. Tổng quan Design Patterns & vị trí của Decorator trong GoF.
+  3. Tại sao chọn Decorator cho dự án YOLO Sleepy Detection.
+  4. Mục tiêu, phạm vi, đóng góp chính của báo cáo.
+
+II. Cơ sở lý thuyết Decorator (8–10 trang)
+  1. Định nghĩa, mục đích, khi nào dùng/không nên dùng.
+  2. Cấu trúc UML chuẩn của Decorator: Component, ConcreteComponent, Decorator, ConcreteDecorator.
+  3. So sánh Decorator với Adapter, Proxy, Composite: điểm giống khác, trade-offs.
+  4. Ví dụ lý thuyết kinh điển (I/O streams, coffee shop), phân tích lợi ích.
+  5. Nguyên tắc SOLID liên quan (OCP, SRP) và các best practices/anti-patterns khi lạm dụng.
+
+III. Phân tích hệ thống áp dụng (8–10 trang)
+  1. Giới thiệu dự án thực tế: YOLO Sleepy Detection – cấu trúc repo, các thành phần chính.
+     - Tệp tham chiếu: yolo-sleepy-allinone-final/multi_camera_gui.py, camera_core.py, standalone_app.py, utils/, tools/…
+  2. Bài toán và hạn chế trước khi áp dụng Decorator:
+     - Coupling giữa capture – detection – overlay – logging.
+     - Khó thêm/chuyển đổi mô-đun (camera IP/webcam, overlay, log, performance) mà không chạm core.
+     - Tái sử dụng kém khi cần nhiều biến thể pipeline.
+  3. Yêu cầu hệ thống: 
+     - Multi-camera, độ trễ < 2s, FPS ≥ 30; overlay; logging sự kiện; state machine buồn ngủ/thức dậy; khả năng cắm nóng tính năng.
+  4. Xác định điểm áp dụng Decorator trong pipeline camera/detection/hiển thị.
+
+IV. Thiết kế & triển khai (10–15 trang)
+  1. Kiến trúc đề xuất dùng Decorator:
+     - Component: ICameraStream (hoặc AbstractCameraStream)
+     - ConcreteComponent: WebcamStream, IPCameraStream
+     - Decorators:
+         • FrameQueueDecorator (luồng capture + queue, drop-oldest)
+         • DetectionDecorator (YOLO pose + optional eye/yawn)
+         • OverlayDecorator (vẽ bbox/keypoints, panel thông tin)
+         • LoggingDecorator (CSV/JSON events, trạng thái ngủ gật)
+         • PerformanceDecorator (đo FPS/latency)
+         • ReconnectDecorator (tự động reconnect)
+     - Mô tả cách xếp chồng (stack) decorators linh hoạt theo cấu hình.
+  2. UML Class Diagram (PlantUML): 
+     - Vẽ đầy đủ lớp, quan hệ kế thừa/kết hợp, ghi chú trách nhiệm từng lớp.
+  3. UML Sequence Diagram (PlantUML):
+     - Luồng: Capture → FrameQueue → Detection → Overlay → Display → Logging.
+  4. Triển khai mã nguồn minh họa (Python):
+     - Cung cấp module mẫu: camera_decorators.py (Component/Decorator), camera_factory.py (tạo chuỗi decorator từ config).
+     - Đoạn tích hợp vào multi_camera_gui.py: nơi gọi factory để tạo stream.
+     - Code phải có chú thích, type hints, xử lý lỗi cơ bản, ví dụ unit test tối thiểu.
+  5. Ảnh chụp màn hình: Multi-Camera tab, overlay, logs.
+
+V. Đánh giá & so sánh (5–8 trang)
+  1. So sánh trước/sau áp dụng Decorator:
+     - Độ phức tạp, tính mô-đun, khả năng mở rộng.
+  2. Benchmark thực nghiệm (mô phỏng hoặc số liệu có được):
+     - FPS 1/4/8 camera; latency; CPU/RAM.
+  3. Đánh giá bảo trì/kiểm thử: 
+     - Dễ viết test từng decorator; tăng độ tin cậy.
+  4. Nhược điểm: 
+     - Chi phí lớp bọc, debug khó hơn; khuyến nghị kiểm soát số tầng decorator.
+
+VI. Kết luận & hướng phát triển (3–5 trang)
+  1. Tổng kết lợi ích Decorator trong hệ thống.
+  2. Bài học kinh nghiệm khi refactor hệ thống thực.
+  3. Hướng mở rộng: kết hợp Strategy (thuật toán phát hiện), Singleton (model registry), Observer (event bus), Command (UI actions).
+
+VII. Tài liệu tham khảo (2–3 trang)
+  - Gamma, Helm, Johnson, Vlissides. Design Patterns: Elements of Reusable Object-Oriented Software, Addison-Wesley, 1994.
+  - Refactoring.Guru – https://refactoring.guru/design-patterns/decorator
+  - TutorialsPoint, GeeksForGeeks, Baeldung (Decorator Pattern)
+  - Ullman, Fowler, Martin (SOLID), bài viết kỹ thuật liên quan.
+  - Paper liên quan đến video processing pipelines (nếu cần).
+
+Phần nội dung mẫu bắt buộc đưa vào (để AI mở rộng chi tiết thành 40–60 trang)
+1) Trích đoạn mã minh họa Decorator (Python)
+```python
+from abc import ABC, abstractmethod
+from typing import Optional, Any
+import time
+
+class ICameraStream(ABC):
+    @abstractmethod
+    def read(self) -> Optional[Any]:
+        """Trả về frame mới nhất hoặc None."""
+        ...
+
+class WebcamStream(ICameraStream):
+    def __init__(self, device_id: int = 0):
+        import cv2
+        self.cap = cv2.VideoCapture(device_id)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    def read(self):
+        ok, frame = self.cap.read()
+        return frame if ok else None
+
+class StreamDecorator(ICameraStream):
+    def __init__(self, inner: ICameraStream):
+        self.inner = inner
+    def read(self):
+        return self.inner.read()
+
+class FrameQueueDecorator(StreamDecorator):
+    def __init__(self, inner: ICameraStream, maxsize: int = 3):
+        super().__init__(inner)
+        from queue import Queue
+        import threading
+        self.q = Queue(maxsize=maxsize)
+        self.running = True
+        def loop():
+            while self.running:
+                f = self.inner.read()
+                if f is None:
+                    time.sleep(0.02); continue
+                if self.q.full():
+                    try: self.q.get_nowait()
+                    except: pass
+                self.q.put_nowait(f)
+        self.th = threading.Thread(target=loop, daemon=True)
+        self.th.start()
+    def read(self):
+        f = None
+        while not self.q.empty():
+            f = self.q.get()
+        return f
+
+class PerformanceDecorator(StreamDecorator):
+    def __init__(self, inner: ICameraStream):
+        super().__init__(inner)
+        self.last = time.time(); self.fps = 0.0
+    def read(self):
+        f = self.inner.read()
+        now = time.time(); dt = max(now - self.last, 1e-6)
+        self.fps = 1.0/dt
+        self.last = now
+        return f
+```
+
+2) PlantUML – Class Diagram (cho Decorator)
+```plantuml
+@startuml
+interface ICameraStream {
+  +read(): Frame
+}
+
+class WebcamStream implements ICameraStream
+class IPCameraStream implements ICameraStream
+
+abstract class StreamDecorator implements ICameraStream {
+  -inner: ICameraStream
+  +read(): Frame
+}
+
+class FrameQueueDecorator extends StreamDecorator
+class DetectionDecorator extends StreamDecorator
+class OverlayDecorator extends StreamDecorator
+class LoggingDecorator extends StreamDecorator
+class PerformanceDecorator extends StreamDecorator
+class ReconnectDecorator extends StreamDecorator
+
+ICameraStream <|.. WebcamStream
+ICameraStream <|.. IPCameraStream
+ICameraStream <|.. StreamDecorator
+StreamDecorator <|-- FrameQueueDecorator
+StreamDecorator <|-- DetectionDecorator
+StreamDecorator <|-- OverlayDecorator
+StreamDecorator <|-- LoggingDecorator
+StreamDecorator <|-- PerformanceDecorator
+StreamDecorator <|-- ReconnectDecorator
+
+StreamDecorator o-- ICameraStream : wraps
+@enduml
+```
+
+3) PlantUML – Sequence Diagram (pipeline)
+```plantuml
+@startuml
+actor User
+participant UI
+participant "Stream (stacked decorators)" as S
+participant Detector
+participant Logger
+
+User -> UI: Start streaming
+UI -> S: read()
+S -> S: FrameQueueDecorator.read()
+S -> S: DetectionDecorator.read()
+S -> Detector: infer(frame)
+Detector --> S: result
+S -> S: OverlayDecorator.read()
+S -> Logger: log(event)
+S --> UI: frame+overlay
+UI -> User: display
+@enduml
+```
+
+4) Mục tích hợp với dự án
+- Tham chiếu cách áp dụng vào `yolo-sleepy-allinone-final/multi_camera_gui.py`: thay vì gọi trực tiếp capture/detection, tạo stream qua factory xếp tầng decorators theo cấu hình (ví dụ YAML: enable_overlay, enable_logging, enable_performance…).
+- Trình bày bản đồ ánh xạ: CameraConfig -> Factory -> Chuỗi decorators -> UI Display/Detection.
+- Nêu ví dụ cấu hình giả lập và kết quả mong đợi.
+
+5) Đánh giá & số liệu mẫu (cần mở rộng đầy đủ):
+- Bảng so sánh FPS/Latency khi bật/tắt từng decorator.
+- Biểu đồ cột FPS theo số lượng camera (1/4/8).
+- Nhận xét định tính từ trải nghiệm người dùng (độ mượt, độ trễ, độ ổn định).
+
+6) Tài liệu tham khảo – yêu cầu trích dẫn:
+- [1] “Design Patterns: Elements of Reusable Object-Oriented Software”, GoF.
+- [2] Refactoring.Guru – Decorator Pattern.
+- [3] Các bài viết uy tín (TutorialsPoint, GeeksForGeeks, Baeldung…).
+- [4] Tài liệu kỹ thuật OpenCV/Ultralytics liên quan (nếu trích dẫn).
+
+Hướng dẫn cho AI khi tạo Word
+- Hãy mở rộng mỗi mục theo dung lượng gợi ý để đạt tổng 40–60 trang.
+- Tạo Mục lục, Danh mục hình/bảng tự động.
+- Với PlantUML, chèn đoạn mã và ảnh UML (nếu hỗ trợ render), chú thích rõ hình.
+- Với mã nguồn Python, thêm chú thích, giải thích logic, ưu/nhược điểm.
+- Tạo bảng so sánh trước/sau; biểu đồ (nếu không render được, mô tả chi tiết dữ liệu và chèn hình minh họa giả lập).
+- Bảo đảm văn phong nhất quán, có kết luận rõ, và phần hướng phát triển khả thi.
+- Chèn số trang, tiêu đề đầu trang/chân trang phù hợp chuẩn học thuật.
+
+Đầu ra mong muốn
+- 01 tệp .docx hoàn chỉnh (40–60 trang) theo cấu trúc trên.
+- Toàn bộ hình ảnh/sơ đồ nhúng; nếu không thể, để placeholder kèm mô tả và mã PlantUML.
+- Định dạng sạch, dễ đọc, sẵn sàng nộp/đánh giá.
+
+PHỤ LỤC PROMPT CHI TIẾT (BỔ SUNG NỘI DUNG TỰ ĐỘNG HÓA)
+
+Prompt 1.1: Phân tích sâu Bối cảnh & Dẫn chứng bằng số liệu
+
+"Hãy viết một phần mở rộng cho mục 'Bối cảnh và Động lực'. Trong đó, hãy tìm và trích dẫn các số liệu thống kê cụ thể (có nguồn uy tín nếu có thể) từ các báo cáo an toàn giao thông, nghiên cứu về giáo dục, hoặc các bài báo khoa học về những hậu quả của việc ngủ gật. Phân tích các số liệu này để nhấn mạnh tính cấp thiết của vấn đề trong ít nhất hai lĩnh vực: (1) An toàn giao thông cho tài xế và (2) Hiệu quả học tập trong môi trường giáo dục. Văn phong phải trang trọng, học thuật."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Liên hệ trực tiếp với bối cảnh ứng dụng: hệ thống của chúng tôi triển khai trong lớp học, hỗ trợ giám sát nhiều camera theo thời gian thực với độ trễ thấp (< 2 giây) và FPS ≥ 30, nhằm phát hiện kịp thời học viên buồn ngủ để hỗ trợ giảng dạy và can thiệp sớm.
+- Giới hạn nguồn tham khảo: chỉ sử dụng các nghiên cứu/khảo sát liên quan đến giấc ngủ của học sinh, sự chú ý trong giờ học, kết quả học tập, và sức khỏe học đường. Không sử dụng số liệu về giao thông hay tài xế.
+- Gợi ý cách trình bày số liệu: tỷ lệ học sinh thiếu ngủ, mối tương quan giữa thời lượng ngủ và điểm số/khả năng tập trung; tác động đến hành vi trong lớp (giảm tương tác, tăng mắc lỗi trong thực hành phòng thí nghiệm, nguy cơ mất an toàn nhẹ trong giờ thực hành).
+- Kết nối luận cứ trong phạm vi lớp học: nhấn mạnh (1) Sức khỏe và an toàn trong lớp/lab (giảm sự cố do mệt mỏi, nâng cao phúc lợi), và (2) Hiệu quả học tập (tăng chú ý, cải thiện thành tích và mức độ tham gia), từ đó làm rõ tính cấp thiết của hệ thống trong môi trường giáo dục.
+
+Prompt 1.2: Phân tích kỹ thuật so sánh các giải pháp hiện có
+
+"Mở rộng mục 'So sánh các giải pháp phát hiện ngủ gật hiện có'. Đối với mỗi phương pháp (cảm biến sinh học, hành vi lái xe, thị giác máy tính cổ điển, học sâu), hãy đi sâu vào chi tiết kỹ thuật:
+
+Cảm biến sinh học: Nêu tên cụ thể của các loại cảm biến (ví dụ: Fz-Cz, Pz-Oz cho EEG) và giải thích ngắn gọn tín hiệu chúng đo lường.
+
+Thị giác máy tính cổ điển: Giải thích chi tiết hơn về thuật toán tính 'Tỷ lệ co của mắt' (Eye Aspect Ratio - EAR), bao gồm công thức tính và cách nó hoạt động với các điểm mốc trên khuôn mặt.
+
+Học sâu: Nêu rõ ưu điểm của YOLO so với các kiến trúc CNN khác (như R-CNN, Faster R-CNN) trong bài toán phát hiện đối tượng thời gian thực.
+Cuối cùng, tạo một bảng so sánh tổng hợp các phương pháp này dựa trên các tiêu chí: Độ chính xác, Tính xâm lấn, Chi phí, Độ trễ, Khả năng mở rộng."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Cảm biến sinh học: Gợi ý kênh EEG chuẩn thường dùng: Fz–Cz, Pz–Oz; bổ sung EOG (nháy mắt), PPG (nhịp tim), GSR (điện dẫn da). Nêu ngắn gọn đại lượng đo lường và mức xâm lấn.
+- Thị giác máy tính cổ điển: Trình bày công thức EAR chi tiết với 6 điểm mốc mí mắt: EAR = (||p2−p6|| + ||p3−p5||) / (2·||p1−p4||). Mô tả cách lấy landmark (ví dụ dlib/mediapipe), ngưỡng EAR, và xử lý nhiễu (kính, góc nhìn).
+- Học sâu: Làm rõ ưu thế YOLO (one-stage, end-to-end, tốc độ cao, phù hợp thời gian thực) so với R-CNN/Faster R-CNN (two-stage, chính xác cao nhưng trễ lớn hơn) trong bối cảnh lớp học (camera góc rộng, nhiều đối tượng, ánh sáng trong nhà). Liên hệ dự án đang dùng Ultralytics YOLO pose (yolo11n/11s) phục vụ keypoints và overlay.
+- Bảng so sánh: điền gợi ý mặc định theo đặc trưng chung; nhấn mạnh “độ trễ thấp” và “khả năng mở rộng nhiều camera” là ưu tiên của dự án.
+
+Prompt cho Chương II: Cơ sở lý thuyết (Mở rộng lên 8-10 trang)
+
+Prompt 2.1: Ví dụ mã nguồn so sánh Decorator, Adapter, và Proxy
+
+"Để làm rõ sự khác biệt, hãy tạo một kịch bản ví dụ duy nhất (ví dụ: truy cập một dịch vụ web) và triển khai giải pháp cho kịch bản đó bằng cả ba mẫu thiết kế: Decorator, Adapter, và Proxy bằng ngôn ngữ Python.
+
+Adapter: Chuyển đổi một đối tượng có API trả về XML sang một đối tượng mới có API trả về JSON.
+
+Proxy: Tạo một CachingProxy để lưu kết quả request trong một khoảng thời gian ngắn, tránh gọi lại dịch vụ web liên tục.
+
+Decorator: Tạo một LoggingDecorator để ghi lại thông tin về mỗi lần request và response.
+Cung cấp mã nguồn đầy đủ cho cả 3 ví dụ và viết một đoạn phân tích chi tiết so sánh mục đích, cấu trúc và cách sử dụng của chúng trong kịch bản này."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Đồng bộ hóa phong cách mã Python với dự án: type hints, docstrings, xử lý lỗi nhẹ.
+- Gợi ý cách tích hợp Decorator Logging tương tự cách ta ghi log sự kiện ngủ gật (CSV/JSON) trong ứng dụng GUI.
+- Lưu ý hiệu năng và không chặn UI (áp dụng tư duy thread/queue khi cần).
+
+Prompt 2.2: Phân tích Decorator Pattern trong một dự án mã nguồn mở
+
+"Hãy tìm và phân tích một ví dụ thực tế về việc sử dụng Decorator Pattern trong một thư viện hoặc framework mã nguồn mở phổ biến của Python (ví dụ: Flask, Django, Scrapy). Trình bày đoạn mã nguồn liên quan, giải thích vai trò của Component, ConcreteComponent, và các Decorator trong bối cảnh của dự án đó. Phân tích những lợi ích mà mẫu thiết kế này mang lại cho dự án."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Gợi ý chọn Flask (@app.route) hoặc Django (@login_required) làm ví dụ; không sao chép nguyên văn mã nguồn dài, chỉ trích đoạn tối thiểu kèm dẫn nguồn.
+- So sánh với kiến trúc của chúng ta: Decorator xếp chồng cho stream (FrameQueue/Detection/Overlay/Logging/Performance/ Reconnect) tương đồng với việc thêm cross-cutting concerns.
+
+Prompt cho Chương III: Phân tích hệ thống (Mở rộng lên 8-10 trang)
+
+Prompt 3.1: Chi tiết hóa Phân tích Kiến trúc cũ và 'Code Smells'
+
+"Dựa trên lớp CameraThread nguyên khối đã cho, hãy viết một bài phân tích sâu về 'code smells' (dấu hiệu mã nguồn có vấn đề). Tạo một bảng, trong đó mỗi hàng tương ứng với một vấn đề, và các cột bao gồm:
+
+Code Smell: Tên vấn đề (ví dụ: Lớp lớn - God Class, Phụ thuộc cứng - Hard-coded Dependency).
+
+Đoạn mã minh họa: Trích dẫn chính xác dòng code từ lớp CameraThread gây ra vấn đề.
+
+Nguyên tắc thiết kế bị vi phạm: Nêu rõ nguyên tắc SOLID nào bị vi phạm (SRP, OCP,...).
+
+Hậu quả: Mô tả các vấn đề về bảo trì, kiểm thử, mở rộng mà đoạn mã này gây ra trong tương lai.
+Sau đó, hãy tạo một sơ đồ thành phần (Component Diagram) bằng PlantUML để mô tả kiến trúc cũ, thể hiện rõ sự phụ thuộc chặt chẽ giữa các thành phần."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- “Kiến trúc cũ (giả định)” là lớp CameraThread nguyên khối: capture + decode + detection + overlay + logging bị dồn trong một luồng.
+- Nêu code smells tiêu biểu: God Class, Hard-coded Dependency (cv2.VideoCapture, đường RTSP), Tight Coupling (trực tiếp gọi YOLO và UI), Feature Envy (xử lý UI trong lớp capture), Lack of SRP/OCP.
+- “Kiến trúc mới (đã làm)”: 
+  • `yolo-sleepy-allinone-final/camera_core.py`: CameraCaptureThread (threaded + queue, drop-oldest), connect IP/Webcam, buffer size.
+  • `yolo-sleepy-allinone-final/multi_camera_gui.py`: sử dụng capture thread, `update_display()` lấy frame mới nhất, multi-camera grid.
+  • `yolo-sleepy-allinone-final/gui_app.py`: state machine buồn ngủ có trạng thái “Thức dậy”, logging sự kiện.
+  • `yolo-sleepy-allinone-final/standalone_app.py`: fallback model, theo dõi/lọc nhiễu.
+- Yêu cầu AI vẽ thêm Component Diagram cho “cũ” và “mới” để thể hiện sự giảm phụ thuộc chặt chẽ.
+
+Prompt 3.2: Xây dựng bảng yêu cầu hệ thống chi tiết
+
+"Hãy mở rộng mục 'Yêu cầu Hệ thống' thành hai bảng chi tiết:
+Bảng 1: Yêu cầu chức năng (Functional Requirements)
+
+Các cột: ID, Tên yêu cầu, Mô tả chi tiết, Độ ưu tiên (Cao/Trung bình/Thấp).
+
+Ví dụ: FR1 - Hỗ trợ nhiều nguồn cấp video, FR2 - Phát hiện trạng thái ngủ gật,...
+Bảng 2: Yêu cầu phi chức năng (Non-functional Requirements)
+
+Các cột: ID, Tên yêu cầu, Mô tả & Tiêu chí đo lường (Metric), Độ ưu tiên.
+
+Ví dụ: NFR1 - Hiệu năng (FPS trung bình > 20), NFR2 - Khả năng mở rộng (Thời gian để thêm một bộ lọc mới < 2 giờ làm việc), NFR3 - Độ tin cậy (Hệ thống hoạt động ổn định 99.5% thời gian)."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Gợi ý bảng FR:
+  • FR1: Hỗ trợ nhiều nguồn video (webcam/IP) — đã có dialog cấu hình, test kết nối, nhiều brand RTSP.
+  • FR2: Phát hiện ngủ gật — áp dụng YOLO pose + state machine ngủ/thức dậy, đếm và log sự kiện.
+  • FR3: Overlay trực quan — vẽ keypoints/bbox, panel thông tin, FPS.
+  • FR4: Ghi log — CSV/JSON sự kiện, thời lượng ngủ, thời điểm thức dậy.
+  • FR5: Tự động reconnect — khi stream lỗi.
+  • FR6: Multi-camera grid — hiển thị đồng thời nhiều camera, chuyển layout.
+- Gợi ý bảng NFR (định lượng theo mục tiêu đã đặt và tối ưu thực nghiệm):
+  • NFR1: FPS trung bình ≥ 30 mỗi stream trong điều kiện tiêu chuẩn.
+  • NFR2: Độ trễ end-to-end ≤ 2 giây.
+  • NFR3: Mức ổn định ≥ 99,5% uptime trong ca vận hành 2 giờ.
+  • NFR4: Tính mô-đun — thêm decorator mới < 2 giờ làm việc.
+  • NFR5: Khả năng mở rộng — tối thiểu 4–8 camera trên một máy cấu hình trung bình/khá (ghi rõ cấu hình khi benchmark).
+
+Prompt cho Chương IV: Thiết kế & Triển khai (Mở rộng lên 10-15 trang)
+
+Prompt 4.1: Hoàn thiện mã nguồn cho tất cả các Decorator
+
+"Hãy viết mã nguồn Python hoàn chỉnh cho các lớp ConcreteDecorator còn lại: DetectionDecorator, OverlayDecorator, LoggingDecorator, và IPCameraStream kèm ReconnectDecorator. Mã nguồn phải tuân thủ các yêu cầu:
+
+Có đầy đủ docstrings và chú thích chi tiết giải thích logic.
+
+Sử dụng type hints của Python.
+
+Logic bên trong phải hợp lý và phản ánh đúng chức năng của từng lớp (ví dụ: OverlayDecorator phải có logic để vẽ bounding box và text lên frame)."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Ràng buộc kỹ thuật cần tương thích: Ultralytics YOLO (yolo11n/11s-pose.pt) đã có trong repo; overlay đang thực hiện trong GUI; logging sự kiện ngủ/thức đã có mẫu.
+- DetectionDecorator: chấp nhận chiến lược (xem Prompt 6.1), gọi model inference một lần/lần đọc, trả về frame + metadata (keypoints, score).
+- OverlayDecorator: vẽ keypoints/bbox; hiển thị FPS lấy từ PerformanceDecorator.
+- LoggingDecorator: ghi sự kiện chuyển trạng thái (Ngủ/Thức dậy) với timestamp, duration.
+- IPCameraStream + ReconnectDecorator: xây dựng từ `generate_rtsp_url`, tự động reconnect khi `read()` trả về None liên tiếp.
+
+Prompt 4.2: Thêm mục về Kiểm thử Đơn vị (Unit Testing)
+
+"Hãy viết một mục mới có tiêu đề '4.6. Kiểm thử đơn vị cho kiến trúc Decorator'. Trong mục này:
+
+Giải thích tầm quan trọng của việc kiểm thử đơn vị trong kiến trúc này.
+
+Cung cấp mã nguồn ví dụ về cách viết unit test cho PerformanceDecorator bằng thư viện unittest và unittest.mock của Python. Hướng dẫn cách tạo một lớp MockCameraStream để giả lập nguồn cấp video có tốc độ khung hình cố định, sau đó khẳng định rằng PerformanceDecorator tính toán ra FPS chính xác."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Nhấn mạnh đo FPS là chức năng quan trọng đã dùng để tối ưu độ trễ; test nên kiểm tra cả trường hợp khung hình bị trễ (sleep) và burst.
+- Gợi ý MockCameraStream có tham số `interval_s` để tạo nhịp khung hình ổn định.
+
+Prompt 4.3: Thiết kế cấu hình YAML cho Factory
+
+"Hãy thiết kế một cấu trúc file cấu hình config.yaml chi tiết mà lớp CameraFactory có thể đọc để xây dựng các pipeline camera khác nhau. Cấu trúc này phải cho phép định nghĩa nhiều camera, mỗi camera có loại (webcam/ipcam), nguồn, và danh sách các decorator muốn kích hoạt cùng với tham số của chúng. Cung cấp một ví dụ file config.yaml với ít nhất 3 camera có cấu hình khác nhau."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Tương thích với `yolo-sleepy-allinone-final/cameras.sample.yaml`; thêm phần `decorators:` theo thứ tự áp dụng, ví dụ:
+  ```yaml
+  cameras:
+    - name: LaptopCam
+      type: webcam
+      device_id: 0
+      decorators:
+        - FrameQueueDecorator: { maxsize: 3 }
+        - PerformanceDecorator: {}
+        - DetectionDecorator: { model: yolo11n-pose.pt, conf: 0.25 }
+        - OverlayDecorator: { show_fps: true }
+        - LoggingDecorator: { path: logs/events.csv }
+    - name: GateIPCam
+      type: ipcam
+      brand: hikvision
+      ip: 192.168.1.10
+      port: 554
+      username: admin
+      password: '***'
+      stream_quality: main
+      decorators:
+        - ReconnectDecorator: { retries: 5, backoff_s: 2 }
+        - FrameQueueDecorator: { maxsize: 5 }
+        - PerformanceDecorator: {}
+        - DetectionDecorator: { model: yolo11s-pose.pt, conf: 0.3 }
+        - OverlayDecorator: { show_fps: true }
+    - name: RoomIPCam
+      type: ipcam
+      brand: dahua
+      ip: 192.168.1.11
+      port: 554
+      username: admin
+      password: '***'
+      stream_quality: sub
+      decorators:
+        - FrameQueueDecorator: { maxsize: 2 }
+        - DetectionDecorator: { model: yolo11n-pose.pt, conf: 0.2 }
+        - OverlayDecorator: { show_fps: false }
+  ```
+- Yêu cầu AI viết thêm `CameraFactory` để parse YAML và lắp ráp pipeline tương ứng.
+
+Prompt cho Chương V: Đánh giá & so sánh (Mở rộng lên 5-8 trang)
+
+Prompt 5.1: Đa dạng hóa kịch bản Benchmark
+
+"Mở rộng mục 'Benchmark Hiệu năng'. Hãy đề xuất và mô tả chi tiết 2 kịch bản benchmark mới:
+
+Ảnh hưởng của độ phân giải video: Mô tả cách tiến hành thử nghiệm, tạo một bảng giả lập kết quả FPS và Mức sử dụng GPU khi chạy cùng một pipeline trên các độ phân giải 480p, 720p, và 1080p.
+
+So sánh hiệu năng CPU-only vs. GPU: Mô tả cách cấu hình hệ thống để chạy chỉ với CPU, tạo một bảng giả lập so sánh FPS và Mức sử dụng CPU giữa hai chế độ.
+Viết một đoạn phân tích kết quả cho mỗi kịch bản."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Gợi ý kịch bản phù hợp thực trạng lớp học: so sánh 1/4/8 camera trong một phòng học, resolution 480p/720p/1080p, model yolo11n-pose vs yolo11s-pose, CPU-only vs GPU.
+- Với GPU (nếu có), nêu cấu hình thử nghiệm; nếu không, hướng dẫn tạo số liệu giả lập hợp lý và nêu rõ là giả lập.
+- Nhấn mạnh mục tiêu: FPS ≥ 30 và độ trễ ≤ 2 giây làm tiêu chí PASS/FAIL.
+
+Prompt 5.2: Xây dựng Bảng đánh giá định tính
+
+"Hãy tạo một 'Bảng đánh giá chất lượng kiến trúc' (Qualitative Architecture Evaluation) để so sánh kiến trúc Cũ và Mới.
+
+Các hàng là các tiêu chí: Khả năng bảo trì, Khả năng kiểm thử, Khả năng mở rộng, Tính linh hoạt, Độ phức tạp nhận thức (Cognitive Complexity).
+
+Các cột là: Tiêu chí, Kiến trúc Cũ (Điểm 1-5), Kiến trúc Mới (Điểm 1-5), Lý giải.
+Hãy điền điểm số giả định và viết phần lý giải thuyết phục cho mỗi điểm số."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Gợi ý điểm số: Kiến trúc mới cao hơn về bảo trì/kiểm thử/mở rộng/linh hoạt; độ phức tạp nhận thức tăng nhẹ do nhiều lớp Decorator.
+- Lý giải bằng dẫn chứng: thời gian thêm decorator mới < 2 giờ; thay model không đụng vào capture; sửa overlay không ảnh hưởng reconnect.
+
+Prompt cho Chương VI: Kết luận & Hướng phát triển (Mở rộng lên 3-5 trang)
+
+Prompt 6.1: Chi tiết hóa hướng tích hợp Strategy Pattern
+
+"Mở rộng mục 'Kết hợp với Strategy Pattern'.
+
+Vẽ một sơ đồ lớp UML bằng PlantUML mô tả cách tích hợp Strategy Pattern vào DetectionDecorator. Sơ đồ phải bao gồm interface IDetectionStrategy và các lớp cụ thể như YoloV8Strategy, DlibEARStrategy.
+
+Viết một đoạn mã nguồn Python khung (skeleton code) cho interface IDetectionStrategy và cách lớp DetectionDecorator được sửa đổi để nhận một đối tượng strategy khi khởi tạo."
+
+Nội dung cụ thể để chèn từ dự án (đã thực hiện):
+- Đề xuất interface `IDetectionStrategy` với `infer(frame) -> DetectionResult`.
+- Ví dụ chiến lược: `YoloV8Strategy` (gọi Ultralytics), `DlibEARStrategy` (tính EAR), `MediapipeFaceMeshStrategy` (eye aspect surrogate). 
+- Liên hệ state machine buồn ngủ/thức dậy đang có: strategy trả về chỉ số (eyes closed prob, yawning) để DetectionDecorator cập nhật trạng thái và kích hoạt LoggingDecorator.
+
+Mục bổ sung: Decorator được áp dụng vào ứng dụng phát hiện ngủ gật trong lớp học như thế nào (chi tiết và cách sử dụng)
+
+Mục tiêu
+- Trình bày đầy đủ cách chúng tôi áp dụng mẫu thiết kế Decorator vào pipeline camera → phát hiện → hiển thị → ghi log trong bối cảnh lớp học nhiều camera, độ trễ thấp, FPS cao.
+- Cung cấp hướng dẫn sử dụng: cấu hình YAML, khởi tạo pipeline qua factory, tích hợp vào GUI, và vận hành.
+
+Tổng quan kiến trúc
+- Component nền tảng:
+  • `ICameraStream` (khái niệm): định nghĩa phương thức `read() -> Optional[Frame]` trả về khung hình mới nhất hoặc None.
+  • Concrete components: `WebcamStream`, `IPCameraStream` (xây RTSP từ brand, ip, port, username, password, stream_quality).
+- Decorators (xếp chồng theo nhu cầu):
+  • `FrameQueueDecorator`: chạy luồng capture riêng, đẩy frame vào hàng đợi giới hạn (drop-oldest) để giảm độ trễ và tăng FPS hiển thị.
+  • `PerformanceDecorator`: đo thời gian giữa hai lần đọc, tính FPS hiện tại để hiển thị và benchmark.
+  • `DetectionDecorator`: gọi chiến lược phát hiện (YOLO pose, EAR, Mediapipe), trả về metadata (keypoints, trạng thái mắt/nháy/ngáp) kèm frame.
+  • `OverlayDecorator`: vẽ bbox/keypoints và text (FPS, trạng thái buồn ngủ/thức dậy) lên frame.
+  • `LoggingDecorator`: ghi sự kiện chuyển trạng thái (Ngủ → Thức dậy và ngược lại), timestamp, duration, camera name/ID.
+  • `ReconnectDecorator`: giám sát lỗi đọc, tự động reconnect nguồn IP cam theo backoff.
+
+Luồng dữ liệu
+1) Nguồn camera (webcam hoặc IP) → `FrameQueueDecorator` duy trì frame mới nhất, tránh tồn đọng.
+2) `PerformanceDecorator` đo FPS đọc để theo dõi hiệu năng thời gian thực.
+3) `DetectionDecorator` gọi chiến lược, cập nhật state machine buồn ngủ/thức dậy ở cấp đối tượng theo ID theo dõi (nếu có tracking) hoặc theo khung hình.
+4) `OverlayDecorator` vẽ overlay và chú thích (FPS, trạng thái từng đối tượng/ô camera).
+5) `LoggingDecorator` ghi log sự kiện (CSV/JSON) dùng cho báo cáo lớp học hoặc can thiệp sớm.
+
+Tích hợp vào các tệp của dự án
+- `yolo-sleepy-allinone-final/camera_core.py`:
+  • Triển khai capture luồng riêng (thread) kèm queue; cấu hình buffer size cv2 về 1; kiểm thử kết nối.
+  • Tương thích với `IPCameraStream` thông qua hàm dựng RTSP theo brand.
+- `yolo-sleepy-allinone-final/multi_camera_gui.py`:
+  • Mỗi camera khi Start sẽ tạo pipeline: nguồn → FrameQueue → Performance → Detection → Overlay → Logging (theo cấu hình).
+  • `update_display()` luôn lấy frame mới nhất từ queue để tránh trễ; hiển thị grid nhiều camera.
+  • Hộp thoại cấu hình hỗ trợ đầy đủ trường webcam/IP, brand, chất lượng stream và nút "Test Connection".
+- `yolo-sleepy-allinone-final/gui_app.py`:
+  • Hàm xử lý khung hình có state machine buồn ngủ với trạng thái trung gian “Thức dậy”; ghi lại thời lượng và sự kiện.
+- `yolo-sleepy-allinone-final/standalone_app.py`:
+  • Chạy pipeline đơn giản từ webcam/IP; fallback model (`yolo11n-pose.pt`) nếu thiếu trọng số tuỳ chỉnh.
+
+Cấu hình YAML (ví dụ cho lớp học)
+```yaml
+cameras:
+  - name: FrontRow
+    type: webcam
+    device_id: 0
+    decorators:
+      - FrameQueueDecorator: { maxsize: 3 }
+      - PerformanceDecorator: {}
+      - DetectionDecorator: { model: yolo11n-pose.pt, conf: 0.25, strategy: yolo }
+      - OverlayDecorator: { show_fps: true, show_state: true }
+      - LoggingDecorator: { path: logs/frontrow_events.csv }
+  - name: BackRow
+    type: ipcam
+    brand: hikvision
+    ip: 192.168.1.21
+    port: 554
+    username: admin
+    password: '***'
+    stream_quality: sub
+    decorators:
+      - ReconnectDecorator: { retries: 5, backoff_s: 2 }
+      - FrameQueueDecorator: { maxsize: 5 }
+      - PerformanceDecorator: {}
+      - DetectionDecorator: { model: yolo11s-pose.pt, conf: 0.3, strategy: yolo }
+      - OverlayDecorator: { show_fps: true, show_state: true }
+      - LoggingDecorator: { path: logs/backrow_events.csv }
+  - name: TeacherSide
+    type: ipcam
+    brand: dahua
+    ip: 192.168.1.22
+    port: 554
+    username: admin
+    password: '***'
+    stream_quality: main
+    decorators:
+      - FrameQueueDecorator: { maxsize: 3 }
+      - PerformanceDecorator: {}
+      - DetectionDecorator: { model: yolo11n-pose.pt, conf: 0.25, strategy: mediapipe }
+      - OverlayDecorator: { show_fps: false, show_state: true }
+```
+
+Factory khởi tạo pipeline
+- Yêu cầu AI/triển khai `CameraFactory` đọc YAML, theo thứ tự `decorators` để xếp chồng:
+  1) Tạo nguồn: `WebcamStream(device_id)` hoặc `IPCameraStream(brand, ip, ...)`.
+  2) Áp dụng lần lượt `Reconnect` (nếu có) → `FrameQueue` → `Performance` → `Detection(strategy)` → `Overlay` → `Logging`.
+  3) Trả về đối tượng cuối cùng có API `read()` cho GUI.
+
+Cách sử dụng trong GUI
+- Tại `multi_camera_gui.py`, khi người dùng nhấn Start cho một camera:
+  • Đọc cấu hình camera từ dialog hoặc YAML.
+  • Gọi `CameraFactory.create(camera_config)` để nhận pipeline.
+  • Lập lịch timer (Qt) gọi `read()` định kỳ, cập nhật QLabel/QGraphicsView với frame đã overlay.
+  • Bấm Stop: giải phóng luồng capture, đóng log.
+
+Tiêu chí hiệu năng và chất lượng
+- Mục tiêu: FPS ≥ 30 cho mỗi camera ở điều kiện tiêu chuẩn phòng học; độ trễ end-to-end ≤ 2 giây.
+- Đảm bảo ổn định: Reconnect khi mất khung liên tiếp; queue drop-oldest để không dồn trễ.
+- Kiểm thử đơn vị: PerformanceDecorator phải đo FPS đúng với MockCameraStream; DetectionDecorator có thể test bằng khung hình giả lập và chiến lược mock.
+
+Lợi ích Decorator trong ứng dụng
+- Tách rời mối quan tâm: capture, hiệu năng, phát hiện, hiển thị, ghi log độc lập, thay/đổi thứ tự dễ dàng.
+- Mở rộng linh hoạt: thêm decorator mới (ví dụ PrivacyMaskDecorator) mà không sửa code nguồn của component.
+- Dễ bảo trì/kiểm thử: có thể test từng decorator; giảm ảnh hưởng dây chuyền.
