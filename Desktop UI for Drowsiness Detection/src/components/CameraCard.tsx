@@ -375,26 +375,17 @@ export function CameraCard({
       if (!canvasRef.current) return;
       
       const canvas = canvasRef.current;
-      let sourceWidth = 640;
-      let sourceHeight = 360;
       
-      if (camera.type === 'webcam' && videoRef.current) {
-        if (videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
-          sourceWidth = videoRef.current.videoWidth;
-          sourceHeight = videoRef.current.videoHeight;
-        }
-      } else if (camera.type === 'ip' && imgRef.current) {
-        if (imgRef.current.naturalWidth > 0 && imgRef.current.naturalHeight > 0) {
-          sourceWidth = imgRef.current.naturalWidth;
-          sourceHeight = imgRef.current.naturalHeight;
-        }
-      }
+      // Get the displayed size of the canvas container
+      const rect = canvas.getBoundingClientRect();
+      const displayWidth = Math.floor(rect.width);
+      const displayHeight = Math.floor(rect.height);
       
-      // Set canvas internal dimensions to match source
-      if (canvas.width !== sourceWidth || canvas.height !== sourceHeight) {
-        canvas.width = sourceWidth;
-        canvas.height = sourceHeight;
-        console.log(`[CameraCard ${camera.id}] Canvas dimensions updated: ${sourceWidth}x${sourceHeight}`);
+      // Set canvas internal dimensions to match displayed size for 1:1 pixel mapping
+      if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+        canvas.width = displayWidth;
+        canvas.height = displayHeight;
+        console.log(`[CameraCard ${camera.id}] Canvas dimensions updated to display size: ${displayWidth}x${displayHeight}`);
       }
     };
     
@@ -914,22 +905,20 @@ export function CameraCard({
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover"
+                className="absolute top-0 left-0 w-full h-full object-cover z-0"
               />
             ) : (
               <img
                 ref={imgRef}
                 alt={camera.name}
-                className="w-full h-full object-cover select-none"
+                className="absolute top-0 left-0 w-full h-full object-cover select-none z-0"
                 draggable={false}
               />
             )}
 
-            {/* Canvas overlay for tracking visualizations */}
+            {/* Canvas overlay for tracking visualizations - EXACTLY overlay video */}
             <canvas
               ref={canvasRef}
-              width={640}
-              height={360}
               className="absolute top-0 left-0 w-full h-full pointer-events-none z-10"
             />
 
