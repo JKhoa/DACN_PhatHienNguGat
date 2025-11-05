@@ -23,12 +23,12 @@ import {
   AlertCircle,
   Loader2,
   Users,
-  Brain,
 } from 'lucide-react';
 import { cn } from './ui/utils';
 import { StudentTrackingDetails } from './StudentTrackingDetails';
-import { YOLODetectionPanel } from './YOLODetectionPanel';
-import { acquireWebcam, releaseWebcam, mapGetUserMediaError, forceReleaseAllWebcams, getAvailableCameras, requestCameraPermission, detectWorkingCamera } from '../lib/webcamRegistry';
+import { acquireWebcam, releaseWebcam, mapGetUserMediaError, forceReleaseAllWebcams, getAvailableCameras, requestCameraPermission, testCameraAccess } from '../lib/webcamRegistry';
+import { DetectionWSClient, DetectionResult as WSDetectionResult } from '../lib/wsDetection';
+import { wsCamera } from '../lib/wsCamera';
 
 interface CameraCardProps {
   camera: Camera;
@@ -39,6 +39,7 @@ interface CameraCardProps {
   onToggleLogging?: (cameraId: string) => void;
   onCapturePhoto?: (cameraId: string) => void;
   onRecordVideo?: (cameraId: string) => void;
+  onUpdateStudents?: (cameraId: string, students: any[], fps: number) => void;
   showOverlay: boolean;
   showPerformance: boolean;
 }
@@ -52,24 +53,35 @@ export function CameraCard({
   onToggleLogging,
   onCapturePhoto,
   onRecordVideo,
+  onUpdateStudents,
   showOverlay,
   showPerformance,
 }: CameraCardProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const [sleepDuration, setSleepDuration] = useState(0);
   const [showTrackingDetails, setShowTrackingDetails] = useState(false);
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [availableCameras, setAvailableCameras] = useState<any[]>([]);
+  const [availableCameras, setAvailableCameras] = useState<Array<{ deviceId: string; label: string; groupId: string }>>([]);
   const [streamKey, setStreamKey] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [lastIpFrameUrl, setLastIpFrameUrl] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
-  const [showYOLOPanel, setShowYOLOPanel] = useState(false);
-  const [yoloDetectionEnabled, setYoloDetectionEnabled] = useState(false);
+  const wsClientRef = useRef<DetectionWSClient | null>(null);
+  const wsConnectedRef = useRef<boolean>(false);
+  // Keep WS detection results locally so we can draw overlays even if parent doesn't wire onUpdateStudents
+  const [wsStudents, setWsStudents] = useState<any[]>([]);
+  const [wsFps, setWsFps] = useState<number>(0);
+  // Last detection frame dimensions from WS (used for correct overlay scaling)
+  const [wsFrameDims, setWsFrameDims] = useState<{ w: number; h: number } | null>(null);
+  // UI-adjustable detection sensitivity (0-100). Higher = more sensitive (lower YOLO conf)
+  const [sensitivity, setSensitivity] = useState(75 as number);
+  
+  // Local tracking data (demo tracking boxes)
+  const [localTrackingData, setLocalTrackingData] = useState([] as any[]);
 
   // Load available cameras on mount
   useEffect(() => {
@@ -85,7 +97,7 @@ export function CameraCard({
   const handleForceRetry = async () => {
     console.log('Force retrying webcam...');
     setLocalError(null);
-    setRetryCount(prev => prev + 1);
+  setRetryCount((prev: number) => prev + 1);
     
     // Request camera permission first
     const hasPermission = await requestCameraPermission();
@@ -94,14 +106,12 @@ export function CameraCard({
       return;
     }
     
-    // Detect working camera
-    const workingCamera = await detectWorkingCamera();
-    if (!workingCamera) {
-      setLocalError('Không tìm thấy camera hoạt động. Hãy kiểm tra camera có được kết nối đúng không.');
+    // Test camera access before retry
+    const cameraAccessible = await testCameraAccess(camera.deviceId?.toString());
+    if (!cameraAccessible) {
+      setLocalError('Camera không thể truy cập được. Hãy kiểm tra camera có được kết nối đúng không.');
       return;
     }
-    
-    console.log(`Found working camera: ${workingCamera.label} (${workingCamera.deviceId})`);
     
     // Force release all webcam streams first
     forceReleaseAllWebcams();
@@ -114,7 +124,7 @@ export function CameraCard({
     setAvailableCameras(cameras);
     
     // Force re-render to trigger useEffect
-    setReloadNonce(prev => prev + 1);
+  setReloadNonce((prev: number) => prev + 1);
   };
 
 
@@ -152,6 +162,118 @@ export function CameraCard({
             }
           };
           v?.addEventListener('loadedmetadata', onLoaded, { once: true });
+
+          // Connect WebSocket for realtime detections
+          if (!wsClientRef.current) {
+            const client = new DetectionWSClient();
+            wsClientRef.current = client;
+            client.connect((msg: WSDetectionResult) => {
+              wsConnectedRef.current = !!msg;
+              try {
+                if (!msg || !msg.success) return;
+                const persons = Array.isArray(msg.persons) ? msg.persons : [];
+                const backendFps = typeof msg.fps === 'number' ? msg.fps : 0;
+                const fw = typeof (msg as any).frame_width === 'number' ? (msg as any).frame_width : undefined;
+                const fh = typeof (msg as any).frame_height === 'number' ? (msg as any).frame_height : undefined;
+                if (fw && fh) setWsFrameDims({ w: fw, h: fh });
+                // Deduplicate by track_id/id within a frame
+                const seen = new Set<string>();
+                const students = persons.map((p: any, idx: number) => {
+                  const head = p.head_bbox || p.headBbox || p.bbox;
+                  const [x1, y1, x2, y2] = head || p.bbox || [0,0,0,0];
+                  const cx = Math.max(0, Math.floor((x1 + x2) / 2));
+                  const cy = Math.max(0, Math.floor((y1 + y2) / 2));
+                  // Normalize state to only 2 classes: awake | drowsy
+                  const st = (p.drowsiness_state === 'awake') ? 'awake' : 'drowsy';
+                  const pid = String(p.track_id || p.id || idx + 1);
+                  if (seen.has(pid)) return null;
+                  seen.add(pid);
+                  return {
+                    id: pid,
+                    position: { x: cx, y: cy },
+                    state: st,
+                    confidence: typeof p.confidence === 'number' ? p.confidence : (p.drowsiness_score ?? 0.5),
+                    sleepDuration: 0,
+                    lastUpdate: new Date(),
+                    bbox: p.bbox,
+                    headBbox: head,
+                  };
+                }).filter(Boolean) as any[];
+                // Store locally for overlay drawing immediately
+                setWsStudents(students);
+                setWsFps(Math.round(backendFps));
+                // Also propagate to parent store if handler provided (for global stats etc.)
+                if (onUpdateStudents) {
+                  onUpdateStudents(camera.id, students, Math.round(backendFps));
+                }
+              } catch (e) {
+                // ignore parse errors
+              }
+            });
+            // Push initial config
+            const confVal = mapSensitivityToConf(sensitivity);
+            client.updateConfig({ conf: confVal, preprocess: { enabled: true } });
+          }
+          
+          // Start sending frames to backend for detection
+          let detectionStopped = false;
+          const sendFrameForDetection = async () => {
+            if (detectionStopped || !mounted || !videoRef.current || !canvasRef.current) return;
+            
+            try {
+              const video = videoRef.current;
+              if (video.readyState < 2) { // Not ready
+                setTimeout(sendFrameForDetection, 100);
+                return;
+              }
+              
+              const canvas = canvasRef.current;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                setTimeout(sendFrameForDetection, 100);
+                return;
+              }
+              
+              // Capture frame from video to temporary canvas
+              const tempCanvas = document.createElement('canvas');
+              // Downscale to reduce encoding+WS payload (target ~480p)
+              const srcW = video.videoWidth || 640;
+              const srcH = video.videoHeight || 360;
+              const targetW = Math.min(480, srcW);
+              const scale = targetW / Math.max(1, srcW);
+              const targetH = Math.max(1, Math.floor(srcH * scale));
+              tempCanvas.width = targetW;
+              tempCanvas.height = targetH;
+              const tempCtx = tempCanvas.getContext('2d');
+              if (tempCtx) {
+                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+                
+                // Convert to base64 and send via WebSocket (low-latency)
+                const frameBase64 = tempCanvas.toDataURL('image/jpeg', 0.6);
+                const ws = wsClientRef.current as DetectionWSClient | null;
+                if (ws && wsConnectedRef.current) {
+                  ws.sendFrame(frameBase64, camera.id);
+                } else {
+                  // WS chưa sẵn sàng: bỏ qua frame này (chỉ dùng WebSocket theo yêu cầu)
+                }
+              }
+            } catch (error) {
+              // Silently ignore detection errors for webcam
+              console.debug(`[CameraCard ${camera.id}] Detection error:`, error);
+            }
+            
+            // Send next frame after delay
+            if (!detectionStopped && mounted) {
+              setTimeout(sendFrameForDetection, 180); // ~5-6 FPS detection via WS to reduce CPU
+            }
+          };
+          
+          // Start detection after video is ready
+          setTimeout(sendFrameForDetection, 500);
+          
+          return () => {
+            detectionStopped = true;
+          };
         } catch (err: any) {
           const msg = mapGetUserMediaError(err);
           console.error(`Error starting webcam for camera ${camera.id}:`, err);
@@ -160,30 +282,54 @@ export function CameraCard({
       } else if (camera.type === 'ip') {
         // Poll backend for JPEG frames to avoid <video> element requirements
         let stopped = false;
-        const poll = async () => {
-          if (stopped) return;
+        // Subscribe WS updates for this camera to draw overlays without HTTP polling for detections
+        const unsubscribe = wsCamera.subscribe(camera.id, (msg) => {
           try {
-            const res = await fetch(`http://127.0.0.1:5000/api/camera/${camera.id}/stream?ts=${Date.now()}`, {
-              cache: 'no-store',
-              mode: 'cors',
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data?.success && data.frame) {
-                const url = `data:image/jpeg;base64,${data.frame}`;
-                setLastIpFrameUrl(url);
-                if (imgRef.current) {
-                  imgRef.current.src = url;
-                }
-              }
+            const persons = Array.isArray(msg.persons) ? msg.persons : [];
+            const backendFps = typeof msg.fps === 'number' ? msg.fps : 0;
+            if (typeof msg.frame_width === 'number' && typeof msg.frame_height === 'number') {
+              setWsFrameDims({ w: msg.frame_width, h: msg.frame_height });
             }
-          } catch (e) {
-            // transient fetch errors are ignored; status UI shows overall health
-          }
-          setTimeout(poll, 150);
+            // Debug: confirm WS updates arriving
+            if ((window as any).__lastWsCamLogTs === undefined || Date.now() - (window as any).__lastWsCamLogTs > 2000) {
+              console.log(`[WS-CAM ${camera.id}] update: persons=${persons.length}, dims=${msg.frame_width}x${msg.frame_height}, fps=${backendFps}`);
+              (window as any).__lastWsCamLogTs = Date.now();
+            }
+            const seen = new Set<string>();
+            const students = persons.map((p: any, idx: number) => {
+              const head = p.head_bbox || p.headBbox || p.bbox;
+              const [x1, y1, x2, y2] = head || p.bbox || [0,0,0,0];
+              const cx = Math.max(0, Math.floor((x1 + x2) / 2));
+              const cy = Math.max(0, Math.floor((y1 + y2) / 2));
+              const st = (p.drowsiness_state === 'awake') ? 'awake' : 'drowsy';
+              const pid = String(p.track_id || p.id || idx + 1);
+              if (seen.has(pid)) return null;
+              seen.add(pid);
+              return {
+                id: pid,
+                position: { x: cx, y: cy },
+                state: st,
+                confidence: typeof p.confidence === 'number' ? p.confidence : (p.drowsiness_score ?? 0.5),
+                sleepDuration: 0,
+                lastUpdate: new Date(),
+                bbox: p.bbox,
+                headBbox: head,
+              };
+            }).filter(Boolean) as any[];
+            setWsStudents(students);
+            setWsFps(Math.round(backendFps));
+            if (onUpdateStudents) onUpdateStudents(camera.id, students, Math.round(backendFps));
+          } catch {}
+        });
+        
+        // ========== WEBSOCKET ONLY - NO HTTP POLLING ==========
+        // Backend sẽ tự động gửi frame qua WebSocket khi có update
+        // Không cần poll HTTP nữa, chỉ cần subscribe WS và nhận frame từ backend
+        
+        return () => { 
+          stopped = true; 
+          try { unsubscribe(); } catch {} 
         };
-        poll();
-        return () => { stopped = true; };
       }
     };
 
@@ -203,127 +349,434 @@ export function CameraCard({
           videoRef.current.srcObject = null;
         }
       }
+      // Close WS if open
+      if (wsClientRef.current) {
+        try { wsClientRef.current.close(); } catch {}
+        wsClientRef.current = null;
+        wsConnectedRef.current = false;
+      }
+      setWsStudents([]);
+      setWsFps(0);
       setVideoStream(null);
     };
   }, [camera.isRunning, camera.status, camera.type, camera.deviceId, camera.id, reloadNonce]);
 
-  // Draw tracking overlays on canvas
+  // Update backend config when sensitivity changes
   useEffect(() => {
-    if (camera.isRunning && camera.status === 'online' && showOverlay) {
+    const client = wsClientRef.current as DetectionWSClient | null;
+    if (client) {
+      client.updateConfig({ conf: mapSensitivityToConf(sensitivity) });
+    }
+  }, [sensitivity]);
+
+  // Sync canvas dimensions with video/image dimensions
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      if (!canvasRef.current) return;
+      
+      const canvas = canvasRef.current;
+      let sourceWidth = 640;
+      let sourceHeight = 360;
+      
+      if (camera.type === 'webcam' && videoRef.current) {
+        if (videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
+          sourceWidth = videoRef.current.videoWidth;
+          sourceHeight = videoRef.current.videoHeight;
+        }
+      } else if (camera.type === 'ip' && imgRef.current) {
+        if (imgRef.current.naturalWidth > 0 && imgRef.current.naturalHeight > 0) {
+          sourceWidth = imgRef.current.naturalWidth;
+          sourceHeight = imgRef.current.naturalHeight;
+        }
+      }
+      
+      // Set canvas internal dimensions to match source
+      if (canvas.width !== sourceWidth || canvas.height !== sourceHeight) {
+        canvas.width = sourceWidth;
+        canvas.height = sourceHeight;
+        console.log(`[CameraCard ${camera.id}] Canvas dimensions updated: ${sourceWidth}x${sourceHeight}`);
+      }
+    };
+    
+    if (camera.isRunning && camera.status === 'online') {
+      updateCanvasSize();
+      
+      // Watch for dimension changes
+      const checkInterval = setInterval(updateCanvasSize, 500);
+      
+      if (videoRef.current) {
+        videoRef.current.addEventListener('loadedmetadata', updateCanvasSize);
+      }
+      if (imgRef.current) {
+        imgRef.current.addEventListener('load', updateCanvasSize);
+      }
+      
+      return () => {
+        clearInterval(checkInterval);
+        if (videoRef.current) {
+          videoRef.current.removeEventListener('loadedmetadata', updateCanvasSize);
+        }
+        if (imgRef.current) {
+          imgRef.current.removeEventListener('load', updateCanvasSize);
+        }
+      };
+    }
+  }, [camera.isRunning, camera.status, camera.type, camera.id]);
+
+  // Draw tracking overlays on canvas - ALWAYS DRAW WHEN CAMERA IS RUNNING
+  useEffect(() => {
+    if (camera.isRunning && camera.status === 'online') {
+      console.log(`[CameraCard ${camera.id}] 🎨 Starting canvas drawing loop`);
+      
       const drawInterval = setInterval(() => {
-        if (canvasRef.current && videoRef.current) {
+        if (canvasRef.current) {
           const canvas = canvasRef.current;
           const ctx = canvas.getContext('2d');
-          if (ctx) {
+          if (ctx && (canvas.width > 0 || canvas.height > 0)) {
+            // Always draw, even if video/image not ready yet
             // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, canvas.width || 640, canvas.height || 360);
             
-            // Draw tracking overlays
+            // Draw tracking overlays (ALWAYS, regardless of showOverlay)
             drawOverlays(ctx, canvas);
           }
         }
-      }, 33); // ~30 FPS
-
-      const interval = drawInterval;
+      }, 120); // Draw every ~120ms to reduce CPU slightly
+      
+      // Initial draw after a short delay
+      const initialDraw = setTimeout(() => {
+        if (canvasRef.current) {
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, canvas.width || 640, canvas.height || 360);
+            drawOverlays(ctx, canvas);
+          }
+        }
+      }, 200);
       
       return () => {
-        console.log(`Stopping video stream for camera ${camera.id}`);
-        clearInterval(interval);
+        clearInterval(drawInterval);
+        clearTimeout(initialDraw);
       };
     }
-  }, [camera.isRunning, camera.status, camera.id]);
+  }, [camera.isRunning, camera.status, camera.id, showOverlay, camera.students, camera.type, localTrackingData]);
+
+  // Generate demo tracking boxes if no students from backend - ALWAYS CREATE FOR ACTIVE CAMERAS
+  useEffect(() => {
+    if (camera.isRunning && camera.status === 'online') {
+      // Generate demo tracking boxes based on canvas size
+      const generateDemoBoxes = () => {
+        // Use canvas dimensions if available, otherwise default
+        let width = 640;
+        let height = 360;
+        
+        if (canvasRef.current) {
+          width = canvasRef.current.width || 640;
+          height = canvasRef.current.height || 360;
+        } else if (videoRef.current && videoRef.current.videoWidth) {
+          width = videoRef.current.videoWidth;
+          height = videoRef.current.videoHeight;
+        } else if (imgRef.current && imgRef.current.naturalWidth) {
+          width = imgRef.current.naturalWidth;
+          height = imgRef.current.naturalHeight;
+        }
+        
+        // Only generate demo boxes if no backend students
+        if (camera.students.length === 0) {
+          // Generate 2-4 demo tracking boxes
+          const numBoxes = 2 + Math.floor(Math.random() * 3);
+          const boxes = [];
+          
+          for (let i = 0; i < numBoxes; i++) {
+            const boxWidth = width * (0.15 + Math.random() * 0.1); // 15-25% of canvas width
+            const boxHeight = boxWidth * 1.2; // Aspect ratio for head
+            const x = Math.random() * (width - boxWidth);
+            const y = Math.random() * (height - boxHeight) * 0.6; // Upper 60% of canvas (head area)
+            const state = Math.random() > 0.7 ? (Math.random() > 0.5 ? 'sleepy' : 'head_down') : 'normal';
+            
+            boxes.push({
+              id: `demo-${i + 1}`,
+              x,
+              y,
+              width: boxWidth,
+              height: boxHeight,
+              state,
+            });
+          }
+          
+          console.log(`[CameraCard ${camera.id}] Generated ${boxes.length} demo tracking boxes at ${width}x${height}`);
+          console.log('[CameraCard] Demo boxes:', boxes);
+          setLocalTrackingData(boxes);
+        } else {
+          // Clear demo boxes if backend has students
+          setLocalTrackingData([]);
+        }
+      };
+      
+      // Generate immediately with default dimensions, then retry with actual dimensions
+      generateDemoBoxes(); // Generate immediately with default or current dimensions
+      
+      // Retry after canvas might be ready
+      const timeout1 = setTimeout(() => {
+        generateDemoBoxes();
+      }, 300);
+      
+      const timeout2 = setTimeout(() => {
+        generateDemoBoxes();
+      }, 1000);
+      
+      // Regenerate boxes every 3-5 seconds for demo
+      const demoInterval = setInterval(() => {
+        if (camera.students.length === 0) {
+          generateDemoBoxes();
+        }
+      }, 3000 + Math.random() * 2000);
+      
+      return () => {
+        clearTimeout(timeout1);
+        clearTimeout(timeout2);
+        clearInterval(demoInterval);
+      };
+    } else {
+      setLocalTrackingData([]);
+    }
+  }, [camera.isRunning, camera.status, camera.students.length, camera.id]);
 
   const drawOverlays = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-    if (showOverlay) {
-      // Draw students with head-focused tracking
-      camera.students.forEach((student, index) => {
-        const { x, y } = student.position;
-        
-        // Student color based on state
-        let color = '#22c55e'; // green - normal
-        if (student.state === 'sleepy') color = '#ef4444'; // red
-        if (student.state === 'head_down') color = '#a855f7'; // purple
-        
-        // Draw student circle (head) - smaller and more focused
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2); // Smaller radius
-        ctx.fill();
-        
-        // Draw head-focused bounding box (smaller, less overlap)
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        
-        // Use headBbox if available, otherwise create smaller bbox
-        if (student.headBbox) {
-          const [x1, y1, x2, y2] = student.headBbox;
-          ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-        } else {
-          // Create smaller head-focused bbox
-          ctx.strokeRect(x - 12, y - 12, 24, 20); // Smaller, head-focused
-        }
-        
-        // Draw head keypoints only (no shoulders)
-        ctx.fillStyle = color;
-        // Eyes
-        ctx.beginPath();
-        ctx.arc(x - 4, y - 2, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(x + 4, y - 2, 2, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Confidence label (smaller)
-        if (student.confidence > 0.6) {
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-          ctx.fillRect(x - 12, y - 20, 24, 6);
-          ctx.fillStyle = '#fff';
-          ctx.font = '6px monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText(`${(student.confidence * 100).toFixed(0)}%`, x, y - 16);
-          ctx.textAlign = 'left';
-        }
-        
-        // Student ID (smaller)
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(x - 15, y + 8, 30, 6);
-        ctx.fillStyle = '#fff';
-        ctx.font = '5px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(student.id, x, y + 12);
-        ctx.textAlign = 'left';
-      });
+    // Vẽ tracking box từ kết quả WebSocket với 2 màu: xanh (awake) và đỏ (drowsy)
+    // Ưu tiên WS; nếu chưa có, hiển thị hướng dẫn chờ WS.
+    const wsHasData = wsStudents.length > 0;
+    const trackingBoxes = wsHasData
+      ? wsStudents.map((student: any) => ({
+          id: student.id,
+          x: student.position?.x || 0,
+          y: student.position?.y || 0,
+          bbox: student.bbox,
+          headBbox: student.headBbox,
+          state: student.state === 'drowsy' ? 'drowsy' : 'awake',
+        }))
+      : [];
+    
+    // Debug logging - log every time to ensure tracking is happening
+    // Throttle verbose logging to avoid UI lag
+    (window as any).__lastOverlayLog = (window as any).__lastOverlayLog || 0;
+    const nowTs = Date.now();
+    if (nowTs - (window as any).__lastOverlayLog > 2000) {
+      if (trackingBoxes.length > 0) {
+        console.log(`[CameraCard ${camera.id}] ✅ Drawing ${trackingBoxes.length} boxes (ws:${wsStudents.length}, backend:${camera.students.length}, demo:${localTrackingData.length}) on ${canvas.width}x${canvas.height}`);
+      } else if (camera.isRunning && camera.status === 'online') {
+        console.log(`[CameraCard ${camera.id}] ⚠️ No tracking boxes to draw`);
+      }
+      (window as any).__lastOverlayLog = nowTs;
     }
+    
+    if (trackingBoxes.length === 0) {
+      // Không có dữ liệu WS: hiển thị nhắc chờ kết nối/detections
+      ctx.strokeStyle = '#ff1744';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(10, 10, 250, 50);
+      ctx.fillStyle = '#ff1744';
+      ctx.font = 'bold 14px Arial';
+      ctx.fillText('Đang chờ WS/detections...', 15, 35);
+      ctx.font = '12px Arial';
+      ctx.fillText(`Camera: ${camera.id}`, 15, 50);
+      
+      // Show debug info
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(10, canvas.height - 50, 250, 45);
+      ctx.fillStyle = wsHasData ? '#22c55e' : '#ef4444';
+      ctx.font = '12px Arial';
+      ctx.fillText(`WS: ${wsHasData ? 'ĐANG NHẬN' : 'CHƯA CÓ'}`, 15, canvas.height - 35);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(`FPS: ${wsFps || camera.fps}`, 15, canvas.height - 20);
+      ctx.fillText(`Chế độ: WebSocket`, 15, canvas.height - 8);
+      return;
+    }
+    
+    // Get actual source dimensions for scaling
+    // Prefer WS-reported detection frame size for correct scaling; fallback to media element dims
+    let sourceWidth = wsFrameDims?.w || 640;
+    let sourceHeight = wsFrameDims?.h || 360;
+    if (!wsFrameDims) {
+      if (camera.type === 'webcam' && videoRef.current) {
+        sourceWidth = videoRef.current.videoWidth || sourceWidth;
+        sourceHeight = videoRef.current.videoHeight || sourceHeight;
+      } else if (camera.type === 'ip' && imgRef.current) {
+        sourceWidth = imgRef.current.naturalWidth || sourceWidth;
+        sourceHeight = imgRef.current.naturalHeight || sourceHeight;
+      }
+    }
+    
+    // Calculate scale factors (coordinates from backend may be in different frame size)
+    const scaleX = canvas.width / sourceWidth;
+    const scaleY = canvas.height / sourceHeight;
+    
+    // Draw tracking boxes
+    trackingBoxes.forEach((box: any) => {
+      // Determine box coordinates
+      let x1, y1, x2, y2, x, y;
+      
+      if (box.headBbox && Array.isArray(box.headBbox) && box.headBbox.length >= 4) {
+        // Use headBbox from backend (already in backend frame coordinates)
+        [x1, y1, x2, y2] = box.headBbox;
+        x1 = x1 * scaleX;
+        y1 = y1 * scaleY;
+        x2 = x2 * scaleX;
+        y2 = y2 * scaleY;
+        x = (x1 + x2) / 2;
+        y = (y1 + y2) / 2;
+      } else if (box.bbox && Array.isArray(box.bbox) && box.bbox.length >= 4) {
+        // Use body bbox if headBbox not available
+        [x1, y1, x2, y2] = box.bbox;
+        x1 = x1 * scaleX;
+        y1 = y1 * scaleY;
+        x2 = x2 * scaleX;
+        y2 = y2 * scaleY;
+        // Use top portion of body bbox as head approximation
+        const headHeight = (y2 - y1) * 0.3;
+        y2 = y1 + headHeight;
+        x = (x1 + x2) / 2;
+        y = (y1 + y2) / 2;
+      } else if (box.width && box.height) {
+        // Use demo tracking box dimensions directly (already in canvas coordinates)
+        x1 = box.x;
+        y1 = box.y;
+        x2 = box.x + box.width;
+        y2 = box.y + box.height;
+        x = (x1 + x2) / 2;
+        y = (y1 + y2) / 2;
+      } else {
+        // Fallback: use position with default size
+        x = (box.x || 320) * scaleX;
+        y = (box.y || 180) * scaleY;
+        const defaultSize = Math.min(canvas.width, canvas.height) * 0.15;
+        x1 = x - defaultSize / 2;
+        y1 = y - defaultSize / 2;
+        x2 = x + defaultSize / 2;
+        y2 = y + defaultSize / 2;
+      }
+      
+      // Ensure coordinates are within canvas bounds
+      x1 = Math.max(0, Math.min(x1, canvas.width));
+      y1 = Math.max(0, Math.min(y1, canvas.height));
+      x2 = Math.max(0, Math.min(x2, canvas.width));
+      y2 = Math.max(0, Math.min(y2, canvas.height));
+      x = Math.max(0, Math.min(x, canvas.width));
+      y = Math.max(0, Math.min(y, canvas.height));
+        
+      // Student color based on state
+  const color = box.state === 'drowsy' ? '#ff1744' : '#00e676'; // đỏ | xanh
+      
+      // Draw head-focused bounding box
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(3, canvas.width / 220); // nét dày hơn, rõ ràng
+      
+      // Draw bounding box
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      
+      // Draw corner markers for better visibility
+      const cornerSize = Math.max(8, canvas.width / 80);
+      ctx.beginPath();
+      // Top-left
+      ctx.moveTo(x1, y1 + cornerSize);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x1 + cornerSize, y1);
+      // Top-right
+      ctx.moveTo(x2 - cornerSize, y1);
+      ctx.lineTo(x2, y1);
+      ctx.lineTo(x2, y1 + cornerSize);
+      // Bottom-left
+      ctx.moveTo(x1, y2 - cornerSize);
+      ctx.lineTo(x1, y2);
+      ctx.lineTo(x1 + cornerSize, y2);
+      // Bottom-right
+      ctx.moveTo(x2 - cornerSize, y2);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x2, y2 - cornerSize);
+      ctx.stroke();
+      
+      // Draw center point circle for tracking
+      const centerRadius = Math.max(5, canvas.width / 180);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, centerRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // ID label (to, rõ)
+      const fontSize = Math.max(14, canvas.width / 42);
+      ctx.font = `bold ${fontSize}px Arial`;
+      ctx.textAlign = 'center';
+      
+      const idText = `#${box.id}`;
+      const textMetrics = ctx.measureText(idText);
+      const padding = Math.max(6, canvas.width / 180);
+      const labelHeight = fontSize * 1.25;
+      
+      // Background for ID label
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(
+        x - textMetrics.width / 2 - padding,
+        y - labelHeight - padding * 2 - centerRadius - 5,
+        textMetrics.width + padding * 2,
+        labelHeight + padding
+      );
+      
+      // Draw ID text
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(idText, x, y - padding - centerRadius - 5);
+      
+      // State label: chỉ hai trạng thái
+      const stateText = box.state === 'drowsy' ? 'BUỒN NGỦ' : 'TỈNH';
+      ctx.font = `bold ${fontSize * 0.9}px Arial`;
+        const stateMetrics = ctx.measureText(stateText);
+        
+      ctx.fillStyle = color;
+      ctx.fillRect(
+        x - stateMetrics.width / 2 - padding,
+        y + padding + centerRadius + 5,
+        stateMetrics.width + padding * 2,
+        labelHeight + padding
+      );
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(stateText, x, y + labelHeight + padding + centerRadius + 5);
+      
+      ctx.textAlign = 'left';
+    });
 
     // Performance HUD
-    if (showPerformance) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      ctx.fillRect(5, 5, 120, 80);
+      if (showPerformance) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(5, 5, 120, 80);
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px monospace';
+        ctx.fillText(`FPS: ${wsFps || camera.fps}`, 10, 20);
+        ctx.fillText(`Students: ${camera.students.length}`, 10, 35);
+        ctx.fillText(`Sleepy: ${camera.sleepyStudents}`, 10, 50);
+        ctx.fillText(`Latency: ${Math.floor(Math.random() * 50 + 20)}ms`, 10, 65);
+        ctx.fillText(`Conf: ${(camera.students.reduce((sum, s) => sum + s.confidence, 0) / camera.students.length || 0).toFixed(2)}`, 10, 80);
+      }
+      
+      // Camera info overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(0, 0, canvas.width, 25);
       ctx.fillStyle = '#fff';
-      ctx.font = '11px monospace';
-      ctx.fillText(`FPS: ${camera.fps}`, 10, 20);
-      ctx.fillText(`Students: ${camera.students.length}`, 10, 35);
-      ctx.fillText(`Sleepy: ${camera.sleepyStudents}`, 10, 50);
-      ctx.fillText(`Latency: ${Math.floor(Math.random() * 50 + 20)}ms`, 10, 65);
-      ctx.fillText(`Conf: ${(camera.students.reduce((sum, s) => sum + s.confidence, 0) / camera.students.length || 0).toFixed(2)}`, 10, 80);
-    }
-    
-    // Camera info overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, canvas.width, 25);
-    ctx.fillStyle = '#fff';
-    ctx.font = '12px sans-serif';
-    ctx.fillText(camera.name, 10, 16);
-    
-    if (camera.sleepyStudents > 0) {
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-      ctx.fillRect(canvas.width - 80, 5, 75, 15);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'right';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(camera.name, 10, 16);
+      
+      if (camera.sleepyStudents > 0) {
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+        ctx.fillRect(canvas.width - 80, 5, 75, 15);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'right';
       ctx.fillText(`⚠ ${camera.sleepyStudents} học sinh`, canvas.width - 5, 15);
-      ctx.textAlign = 'left';
-    }
+        ctx.textAlign = 'left';
+      }
   };
 
 
@@ -332,7 +785,7 @@ export function CameraCard({
     const sleepyStudents = camera.students.filter(s => s.state !== 'normal');
     if (sleepyStudents.length > 0) {
       const maxSleepDuration = Math.max(...sleepyStudents.map(s => s.sleepDuration));
-      setSleepDuration(maxSleepDuration);
+    setSleepDuration(maxSleepDuration);
     } else {
       setSleepDuration(0);
     }
@@ -342,7 +795,7 @@ export function CameraCard({
     if (camera.status === 'online') {
       return <Circle className="h-2 w-2 fill-green-500 text-green-500" />;
     } else if (camera.status === 'reconnecting') {
-      return <Loader2 className="h-2 w-2 animate-spin text-yellow-500" />;
+      return <Loader2 className="h-2 w-2 animate-spin text-red-500" />;
     } else if (camera.status === 'error') {
       return <AlertCircle className="h-2 w-2 text-red-500" />;
     } else {
@@ -359,7 +812,7 @@ export function CameraCard({
     } else if (camera.status === 'reconnecting') {
       return {
         text: 'Đang kết nối lại',
-        class: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
+        class: 'bg-red-500/10 text-red-500 border-red-500/20',
       };
     } else if (camera.status === 'error') {
       return {
@@ -417,10 +870,6 @@ export function CameraCard({
               <DropdownMenuItem onClick={() => setShowTrackingDetails(!showTrackingDetails)}>
                 <Users className="h-4 w-4 mr-2" />
                 {showTrackingDetails ? 'Ẩn' : 'Hiện'} Chi tiết Tracking
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowYOLOPanel(!showYOLOPanel)}>
-                <Brain className="h-4 w-4 mr-2" />
-                {showYOLOPanel ? 'Ẩn' : 'Hiện'} YOLO Detection
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onPopOut(camera.id)}>
@@ -481,8 +930,7 @@ export function CameraCard({
               ref={canvasRef}
               width={640}
               height={360}
-              className="absolute top-0 left-0 w-full h-full pointer-events-none"
-              style={{ mixBlendMode: 'normal' }}
+              className="absolute top-0 left-0 w-full h-full pointer-events-none z-10"
             />
 
             {/* Error overlay if webcam failed */}
@@ -515,7 +963,7 @@ export function CameraCard({
                     </div>
                   )}
                 </div>
-              </div>
+            </div>
             )}
           </div>
         ) : (
@@ -544,6 +992,24 @@ export function CameraCard({
         )}
       </div>
 
+      {/* Controls */}
+      {camera.isRunning && camera.status === 'online' && (
+        <div className="px-3 py-2 border-t bg-muted/30 flex items-center gap-3">
+          <label className="text-xs text-muted-foreground whitespace-nowrap">Detection sensitivity</label>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={sensitivity}
+            onChange={(e) => setSensitivity(Number(e.target.value))}
+            className="flex-1"
+            aria-label="Detection sensitivity"
+            title="Detection sensitivity"
+          />
+          <span className="text-xs w-10 text-right font-mono">{sensitivity}</span>
+        </div>
+      )}
+
       {/* Student Tracking Details */}
       {showTrackingDetails && (
         <div className="p-4 border-t">
@@ -554,17 +1020,13 @@ export function CameraCard({
           />
         </div>
       )}
-
-      {/* YOLO Detection Panel */}
-      {showYOLOPanel && (
-        <div className="p-4 border-t">
-          <YOLODetectionPanel
-            cameraId={camera.id}
-            isEnabled={yoloDetectionEnabled}
-            onToggleDetection={setYoloDetectionEnabled}
-          />
-        </div>
-      )}
     </div>
   );
+}
+
+// Map UI sensitivity (0-100) to YOLO confidence threshold (0.05-0.6)
+function mapSensitivityToConf(s: number): number {
+  const sens = Math.max(0, Math.min(100, s || 0));
+  const conf = 0.6 - (sens / 100) * 0.55; // higher sensitivity -> lower conf
+  return Math.max(0.05, Math.min(0.6, conf));
 }

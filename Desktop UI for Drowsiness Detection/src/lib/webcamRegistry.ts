@@ -85,11 +85,11 @@ export async function acquireWebcam(opts: AcquireOpts): Promise<{ stream: MediaS
       const s = await tryGetUserMedia(c);
       registry.set(k, { stream: s, refCount: 1 });
       return { stream: s, streamKey: k };
-    } catch (e) {
+    } catch (e: any) {
       lastErr = e;
       console.warn(`Webcam attempt failed:`, e);
       // If it's "Device in use", try next attempt immediately
-      if (e.name === 'NotReadableError') {
+      if (e && (e as any).name === 'NotReadableError') {
         continue;
       }
       // For other errors, add a small delay
@@ -129,29 +129,6 @@ export async function acquireWebcam(opts: AcquireOpts): Promise<{ stream: MediaS
     }
   } catch (enumErr) {
     console.warn('Failed to enumerate devices:', enumErr);
-  }
-  
-  // If no real camera works, try to detect any working camera
-  console.log('No real cameras available, trying to detect any working camera...');
-  try {
-    const workingCamera = await detectWorkingCamera();
-    if (workingCamera) {
-      console.log(`Found working camera: ${workingCamera.label}, trying to use it...`);
-      const s = await tryGetUserMedia({
-        video: {
-          deviceId: { exact: workingCamera.deviceId },
-          width: { ideal: opts.width || 640 },
-          height: { ideal: opts.height || 480 },
-          frameRate: { ideal: 30, max: 30 }
-        }
-      });
-      const workingKey = keyFor(workingCamera.deviceId);
-      registry.set(workingKey, { stream: s, refCount: 1 });
-      console.log(`Successfully acquired working camera: ${workingCamera.label}`);
-      return { stream: s, streamKey: workingKey };
-    }
-  } catch (detectErr) {
-    console.warn('Failed to detect working camera:', detectErr);
   }
   
   // If no real camera works, throw error instead of using mock camera
@@ -273,86 +250,40 @@ export async function getAvailableCameras() {
   }
 }
 
-// Enhanced camera detection with better error handling
-export async function detectWorkingCamera(): Promise<{ deviceId: string; label: string } | null> {
+// Test if a specific camera device is actually accessible
+export async function testCameraAccess(deviceId?: string): Promise<boolean> {
   try {
-    console.log('Detecting working camera...');
+    console.log(`Testing camera access for device: ${deviceId || 'default'}`);
     
-    // First, enumerate all devices
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cameras = devices.filter(d => d.kind === 'videoinput');
+    const constraints: MediaStreamConstraints = deviceId 
+      ? { video: { deviceId: { exact: deviceId } } }
+      : { video: true };
     
-    console.log(`Found ${cameras.length} camera devices:`, cameras.map(d => ({ 
-      deviceId: d.deviceId, 
-      label: d.label || 'Unknown Camera' 
-    })));
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     
-    if (cameras.length === 0) {
-      console.log('No camera devices found');
-      return null;
-    }
+    // Test if we can actually read frames
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.muted = true;
     
-    // Test each camera to find one that works
-    for (const camera of cameras) {
-      try {
-        console.log(`Testing camera: ${camera.label || camera.deviceId}`);
-        
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            deviceId: { exact: camera.deviceId },
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 30 }
-          }
-        });
-        
-        // Test if we can actually read frames
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.muted = true;
-        
-        const success = await new Promise<boolean>((resolve) => {
-          const timeout = setTimeout(() => {
-            console.log(`Camera ${camera.deviceId} timeout`);
-            resolve(false);
-          }, 3000);
-          
-          video.onloadedmetadata = () => {
-            clearTimeout(timeout);
-            console.log(`Camera ${camera.deviceId} is working!`);
-            resolve(true);
-          };
-          
-          video.onerror = () => {
-            clearTimeout(timeout);
-            console.log(`Camera ${camera.deviceId} failed to load`);
-            resolve(false);
-          };
-          
-          video.load();
-        });
-        
-        // Clean up
+    return new Promise((resolve) => {
+      video.onloadedmetadata = () => {
+        console.log(`Camera ${deviceId || 'default'} is accessible`);
         stream.getTracks().forEach(track => track.stop());
-        
-        if (success) {
-          console.log(`Found working camera: ${camera.label || camera.deviceId}`);
-          return {
-            deviceId: camera.deviceId,
-            label: camera.label || `Camera ${camera.deviceId}`
-          };
-        }
-      } catch (error) {
-        console.log(`Camera ${camera.deviceId} test failed:`, error);
-        continue;
-      }
-    }
-    
-    console.log('No working camera found');
-    return null;
+        resolve(true);
+      };
+      
+      video.onerror = () => {
+        console.log(`Camera ${deviceId || 'default'} failed to load`);
+        stream.getTracks().forEach(track => track.stop());
+        resolve(false);
+      };
+      
+      video.load();
+    });
   } catch (error) {
-    console.error('Error detecting cameras:', error);
-    return null;
+    console.log(`Camera ${deviceId || 'default'} access failed:`, error);
+    return false;
   }
 }
 

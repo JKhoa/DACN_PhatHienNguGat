@@ -40,6 +40,7 @@ export function LogPanel({ logs, cameras, onExport }: LogPanelProps) {
       case 'wake_up':
         return 'bg-green-500/10 text-green-500 border-green-500/20';
       case 'head_down':
+      case 'sleeping':
         return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
       case 'connection':
         return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
@@ -55,6 +56,7 @@ export function LogPanel({ logs, cameras, onExport }: LogPanelProps) {
       case 'wake_up':
         return 'Tỉnh táo';
       case 'head_down':
+      case 'sleeping':
         return 'Gục xuống';
       case 'connection':
         return 'Kết nối';
@@ -106,6 +108,7 @@ export function LogPanel({ logs, cameras, onExport }: LogPanelProps) {
             <SelectContent>
               <SelectItem value="all">Tất cả</SelectItem>
               <SelectItem value="sleepy">Buồn ngủ</SelectItem>
+              <SelectItem value="sleeping">Ngủ</SelectItem>
               <SelectItem value="wake_up">Tỉnh táo</SelectItem>
               <SelectItem value="head_down">Gục xuống</SelectItem>
               <SelectItem value="connection">Kết nối</SelectItem>

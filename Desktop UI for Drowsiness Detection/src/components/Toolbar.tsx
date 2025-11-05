@@ -13,7 +13,8 @@ import {
   FileText,
   Moon,
   Sun,
-  Settings
+  Settings,
+  BarChart3
 } from 'lucide-react';
 import {
   Tooltip,
@@ -39,10 +40,12 @@ interface ToolbarProps {
   onToggleLogging: () => void;
   onToggleTheme: () => void;
   onOpenSettings: () => void;
+  onToggleStatistics?: () => void;
   isDarkMode: boolean;
   overlayEnabled: boolean;
   performanceEnabled: boolean;
   loggingEnabled: boolean;
+  showStatistics?: boolean;
 }
 
 export function Toolbar({
@@ -61,10 +64,12 @@ export function Toolbar({
   onToggleLogging,
   onToggleTheme,
   onOpenSettings,
+  onToggleStatistics,
   isDarkMode,
   overlayEnabled,
   performanceEnabled,
   loggingEnabled,
+  showStatistics,
 }: ToolbarProps) {
   return (
     <TooltipProvider>
@@ -214,6 +219,21 @@ export function Toolbar({
             </TooltipTrigger>
             <TooltipContent>Toggle Logging</TooltipContent>
           </Tooltip>
+
+          {onToggleStatistics && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  size="sm" 
+                  variant={showStatistics ? 'default' : 'outline'}
+                  onClick={onToggleStatistics}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Thống kê ngủ gật</TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         <div className="ml-auto flex items-center gap-2">

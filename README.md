@@ -1,152 +1,111 @@
-# 🎓 Đồ Án Chuyên Ngành - Phát Hiện Ngủ Gật Học Sinh
+# Drowsiness Detection (Classroom)
 
-## 📋 Tổng Quan Dự Án
+This repo includes a complete desktop UI and CLI for multi-camera classroom drowsiness detection using Ultralytics YOLO pose.
 
-Hệ thống phát hiện ngủ gật học sinh sử dụng AI và Computer Vision để theo dõi trạng thái học tập của học sinh trong lớp học thời gian thực.
+## Quick start
 
-## 🚀 Tính Năng Chính
+1) Create and activate a virtual environment (Windows PowerShell):
 
-### ✅ Desktop UI Application
-- **Giao diện hiện đại**: React + TypeScript + TailwindCSS + Radix UI
-- **Theo dõi thời gian thực**: Video feed từ camera với tracking overlay
-- **Quản lý camera**: Hỗ trợ webcam và IP camera
-- **Dashboard**: Thống kê và báo cáo chi tiết
-- **Logging**: Ghi nhận và xuất báo cáo sự kiện
-
-### ✅ AI Detection System
-- **YOLO11 Pose Detection**: Phát hiện tư thế học sinh
-- **Drowsiness Analysis**: Phân tích trạng thái ngủ gật
-- **Multi-student Tracking**: Theo dõi nhiều học sinh cùng lúc
-- **Head-focused Tracking**: Tập trung vào phần đầu để tối ưu
-
-### ✅ Backend Services
-- **Python Flask Server**: API backend cho AI processing
-- **OpenCV Integration**: Xử lý video và camera streams
-- **Real-time Communication**: WebSocket cho live updates
-- **Database Integration**: Lưu trữ logs và statistics
-
-## 🛠️ Công Nghệ Sử Dụng
-
-### Frontend
-- **React 18** + **TypeScript**
-- **Vite** (Build tool)
-- **TailwindCSS** (Styling)
-- **Radix UI** (Component library)
-- **Electron** (Desktop app wrapper)
-
-### Backend
-- **Python 3.9+**
-- **Flask** (Web framework)
-- **OpenCV** (Computer vision)
-- **Ultralytics YOLO** (AI model)
-- **NumPy** + **PIL** (Image processing)
-
-### AI/ML
-- **YOLO11n-pose** (Pose detection model)
-- **Custom trained models** for drowsiness detection
-- **Real-time inference** with GPU acceleration
-
-## 📁 Cấu Trúc Dự Án
-
-```
-DACN_PhatHienNguGat/
-├── 📱 Desktop UI for Drowsiness Detection/    # Desktop application
-│   ├── src/                                 # React frontend source
-│   ├── electron/                            # Electron main process
-│   ├── python-backend/                     # Python Flask backend
-│   └── package.json                         # Node.js dependencies
-├── 🤖 yolo-sleepy-allinone-final/           # AI models & training
-├── 📊 docs/                                 # Documentation
-├── 🔧 tools/                                # Utility scripts
-└── 📈 sleepy_events.csv                     # Event logs
+```powershell
+python -m venv .venv
+. .\.venv\Scripts\Activate.ps1
 ```
 
-## 🚀 Hướng Dẫn Cài Đặt
+2) Install dependencies:
 
-### 1. Clone Repository
-```bash
-git clone https://github.com/JKhoa/DACN_PhatHienNguGat.git
-cd DACN_PhatHienNguGat
-```
-
-### 2. Cài Đặt Desktop App
-```bash
-cd "Desktop UI for Drowsiness Detection"
-npm install
-```
-
-### 3. Cài Đặt Python Backend
-```bash
-cd python-backend
+```powershell
 pip install -r requirements.txt
 ```
 
-### 4. Chạy Ứng Dụng
-```bash
-# Terminal 1: Start Python backend
-python server.py
+3) Run the GUI (recommended):
 
-# Terminal 2: Start Desktop app
-npm run electron
+```powershell
+python standalone_app.py --gui
 ```
 
-## 📊 Kết Quả Đạt Được
+- Default model auto-resolves to `yolo11n-pose.pt` in the repo if present, otherwise it will auto-download via Ultralytics.
+- In the GUI you can choose source (webcam, RTSP/HTTP, video, image), switch models, record annotated video, and use the Multi-Camera tab.
 
-### ✅ Hoàn Thành 100%
-- [x] **Camera Detection**: Tự động phát hiện HD Webcam
-- [x] **Real-time Tracking**: Theo dõi học sinh thời gian thực
-- [x] **Live Video Feed**: Kết nối camera thực sự (không mock)
-- [x] **Backend Integration**: Python Flask server với AI processing
-- [x] **UI Components**: Giao diện React hiện đại
-- [x] **Error Fixes**: Sửa lỗi kết nối camera và backend
-- [x] **Backup System**: Hệ thống backup hoàn chỉnh
+4) CLI examples:
 
-### 📈 Hiệu Suất
-- **FPS**: 25-30 FPS real-time processing
-- **Accuracy**: >90% drowsiness detection accuracy
-- **Latency**: <100ms detection delay
-- **Multi-camera**: Hỗ trợ 1-4 camera đồng thời
+```powershell
+# Webcam
+python standalone_app.py --cam 0 --res 1280x720
 
-## 🎯 Tính Năng Nổi Bật
+# IP camera (example for IMOU/Dahua)
+python standalone_app.py --ip-camera --ip 192.168.1.100 --username admin --password 123456 --camera-brand imou --stream-quality main
 
-### 🔍 Smart Detection
-- **Pose Analysis**: Phân tích tư thế học sinh
-- **Eye Tracking**: Theo dõi trạng thái mắt
-- **Head Movement**: Phát hiện cử động đầu
-- **Sleep Pattern**: Nhận diện pattern ngủ gật
+# Video file
+python standalone_app.py --video data_raw/cap_000000.jpg
+```
 
-### 📱 User Experience
-- **Intuitive UI**: Giao diện trực quan, dễ sử dụng
-- **Real-time Stats**: Thống kê thời gian thực
-- **Event Logging**: Ghi nhận chi tiết sự kiện
-- **Export Reports**: Xuất báo cáo định kỳ
+## Project layout
 
-### 🔧 Technical Features
-- **Cross-platform**: Windows, macOS, Linux
-- **Scalable**: Hỗ trợ mở rộng nhiều camera
-- **Robust**: Xử lý lỗi và recovery tự động
-- **Configurable**: Tùy chỉnh tham số detection
+- `standalone_app.py` — root launcher that dispatches to the full app under `yolo-sleepy-allinone-final/`.
+- `yolo-sleepy-allinone-final/gui_app.py` — Complete desktop UI with tabs and a modern layout.
+- `yolo-sleepy-allinone-final/multi_camera_gui.py` — Multi-camera manager (add/edit/test IP/Webcam, start/stop all, grid/single view).
+- `yolo-sleepy-allinone-final/standalone_app.py` — CLI runner with video/webcam/IP camera support.
+- `yolo-sleepy-allinone-final/enhanced_display.py` — Enhanced multi-person overlays.
+- `yolo-sleepy-allinone-final/camera_core.py` — Shared capture utilities with threaded frame queue for low latency.
 
-## 📚 Tài Liệu Tham Khảo
+## Notes
 
-- [README-COMPLETE-SYSTEM.md](Desktop%20UI%20for%20Drowsiness%20Detection/README-COMPLETE-SYSTEM.md)
-- [README-YOLO-SYSTEM.md](Desktop%20UI%20for%20Drowsiness%20Detection/README-YOLO-SYSTEM.md)
-- [README-HEAD-FOCUSED-TRACKING.md](Desktop%20UI%20for%20Drowsiness%20Detection/README-HEAD-FOCUSED-TRACKING.md)
+- Torch (PyTorch) is not pinned in `requirements.txt` because it must match your GPU/CPU and platform. Install it first if needed from https://pytorch.org.
+- If PyQt5 is missing or you run with `--cli`, the app falls back to console mode.
+- For the multi-camera tab, configuration can be saved/loaded as YAML; `PyYAML` is included in the root requirements.
 
-## 👨‍💻 Tác Giả
+## Web Desktop UI (React/Vite)
 
-**Nguyễn Văn Khoa** - Sinh viên Đại học Công nghệ Thông tin
+You also have a separate, modern Desktop UI implemented with React + Vite under:
 
-## 📄 License
+- `Desktop UI for Drowsiness Detection/`
 
-Dự án này được phát triển cho mục đích học tập và nghiên cứu.
+This is independent from the PyQt5 GUI. To run the web UI:
 
-## 🔗 Links
+```powershell
+# Install Node.js if you don't have it (https://nodejs.org)
 
-- **GitHub Repository**: https://github.com/JKhoa/DACN_PhatHienNguGat
-- **Demo Video**: [Coming Soon]
-- **Documentation**: [In Progress]
+# From repo root
+cd "Desktop UI for Drowsiness Detection"
+npm install
+npm run dev
+# Open the URL shown (typically http://localhost:3000/)
+```
 
----
+Or launch it via the helper script from the repo root:
 
-*Dự án hoàn thành với đầy đủ tính năng và sẵn sàng triển khai thực tế* ✨
+```powershell
+python start_desktop_ui.py
+```
+
+Notes:
+- The React/Vite UI is currently a separate frontend. To drive live detections from Python, expose a local API/WebSocket from the backend and connect to it from the web app. If you want, we can wire this next.
+
+## Realtime WebSocket detection (frontend streams video, backend returns results)
+
+This project now includes a low‑latency WebSocket path for webcam detection:
+
+- Frontend: streams webcam via getUserMedia, captures frames, and sends them over a Socket.IO WebSocket.
+- Backend (Flask + Socket.IO): receives frames, runs the drowsiness model (YOLO pose), and immediately emits structured results (IDs, head boxes, states).
+- Frontend: overlays results (green = normal, red = buồn ngủ, purple = gục bàn) directly on top of the live video; video itself continues to play locally for minimal latency.
+
+Run it:
+
+```powershell
+# 1) (In Python venv) start the backend with WebSocket support
+python start_python_backend.py
+
+# 2) In another terminal, start the React UI
+cd "Desktop UI for Drowsiness Detection"
+npm install
+npm run dev
+```
+
+How it works:
+
+- WebSocket namespace: `ws://127.0.0.1:5000/ws/detect`
+- Frontend client: `src/lib/wsDetection.ts`
+- Webcam component: `src/components/CameraCard.tsx` streams frames to WS and draws overlays from detection results.
+- IP cameras: still managed by backend threads; UI polls `/api/camera/<id>/detection` for results and draws overlays. You can switch to WS per camera later if desired.
+
+Tip: If you only want detection results (no annotated images over the wire), keep the video element local (webcam) and use the WS results to draw on a canvas overlay.

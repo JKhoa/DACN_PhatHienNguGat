@@ -37,59 +37,127 @@ class CameraWorker(threading.Thread):
         self._last_annotated_frame: Optional[np.ndarray] = None
         self._capture: Optional[cv2.VideoCapture] = None
         self._detection_enabled = self.enable_detection
+        self._frame_width = 640
+        self._frame_height = 360
+        self._current_fps = 0.0
+        
+        app.logger.info(f"[{self.cam_id}] CameraWorker initialized with URL: {url}, detection: {self._detection_enabled}")
+        
+        # Auto-enable detection for webcam (device ID)
+        if url.isdigit() or url.startswith('0'):
+            self._detection_enabled = True and YOLO_AVAILABLE
+            app.logger.info(f"[{self.cam_id}] Auto-enabling YOLO detection for webcam")
 
     def run(self):
-        backoff = 1.0
-        while self._running.is_set():
-            if self._capture is None:
-                app.logger.info(f"[{self.cam_id}] Opening stream: {self.url}")
+        app.logger.info(f"[{self.cam_id}] Starting camera worker thread...")
+        
+        # Initialize camera once
+        try:
+            if self.url.isdigit():
+                # Direct device ID - use DirectShow backend for Windows
+                self._capture = cv2.VideoCapture(int(self.url), cv2.CAP_DSHOW)
+                app.logger.info(f"[{self.cam_id}] Using DirectShow backend for device {self.url}")
+            elif self.url.startswith('webcam-') or len(self.url) > 20:
+                # Device ID string - try to find working webcam
+                for i in range(5):
+                    test_cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                    if test_cap.isOpened():
+                        ret, frame = test_cap.read()
+                        if ret and frame is not None:
+                            test_cap.release()
+                            self._capture = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+                            app.logger.info(f"[{self.cam_id}] Using webcam device {i} with DirectShow")
+                            break
+                        test_cap.release()
+                if self._capture is None:
+                    self._capture = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+                    app.logger.info(f"[{self.cam_id}] Using default webcam 0 with DirectShow")
+            else:
+                # IP camera or RTSP URL
                 self._capture = cv2.VideoCapture(self.url)
-                if not self._capture.isOpened():
-                    app.logger.warning(f"[{self.cam_id}] Failed to open stream. Retry in {backoff:.1f}s")
-                    self._capture.release()
-                    self._capture = None
-                    time.sleep(backoff)
-                    backoff = min(backoff * 2.0, 10.0)
+                app.logger.info(f"[{self.cam_id}] Using IP camera: {self.url}")
+            
+            if not self._capture.isOpened():
+                app.logger.error(f"[{self.cam_id}] Failed to open camera")
+                return
+            
+            # Get frame dimensions
+            self._frame_width = int(self._capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self._frame_height = int(self._capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            app.logger.info(f"[{self.cam_id}] Camera opened successfully, frame size: {self._frame_width}x{self._frame_height}")
+            
+        except Exception as e:
+            app.logger.error(f"[{self.cam_id}] Exception during camera initialization: {e}")
+            return
+        
+        # Main loop
+        frame_count = 0
+        fps_start_time = time.time()
+        fps_frame_count = 0
+        current_fps = 0.0
+        
+        while self._running.is_set():
+            try:
+                ok, frame = self._capture.read()
+                if not ok or frame is None:
+                    app.logger.warning(f"[{self.cam_id}] Read failed, retrying...")
+                    time.sleep(0.1)
                     continue
-                backoff = 1.0
-
-            ok, frame = self._capture.read()
-            if not ok or frame is None:
-                app.logger.warning(f"[{self.cam_id}] Read failed. Reopening...")
-                try:
-                    self._capture.release()
-                except Exception:
-                    pass
-                self._capture = None
-                time.sleep(0.5)
-                continue
-
-            with self._lock:
-                self._last_frame = frame
                 
-                # Run YOLO detection if enabled
-                if self._detection_enabled and YOLO_AVAILABLE:
-                    try:
-                        detection_result = detect_frame(frame)
-                        self._last_detection_result = detection_result
-                        
-                        # Create annotated frame with detections
-                        annotated_frame = draw_detections(frame, detection_result)
-                        self._last_annotated_frame = annotated_frame
-                    except Exception as e:
-                        app.logger.error(f"[{self.cam_id}] Detection failed: {e}")
-                        self._last_detection_result = None
-                        self._last_annotated_frame = None
-
-            # Small sleep to reduce CPU usage on fast sources
-            time.sleep(0.001)
-
+                # Update frame dimensions
+                h, w = frame.shape[:2]
+                self._frame_width = w
+                self._frame_height = h
+                
+                frame_count += 1
+                fps_frame_count += 1
+                
+                # Calculate FPS every second
+                elapsed = time.time() - fps_start_time
+                if elapsed >= 1.0:
+                    current_fps = fps_frame_count / elapsed
+                    with self._lock:
+                        self._current_fps = current_fps
+                    fps_frame_count = 0
+                    fps_start_time = time.time()
+                if frame_count % 30 == 0:  # Log every 30 frames
+                        app.logger.info(f"[{self.cam_id}] Frame {frame_count}, FPS: {current_fps:.1f}, size: {frame.shape}")
+                
+                with self._lock:
+                    self._last_frame = frame
+                    
+                    # Run YOLO detection if enabled
+                    if self._detection_enabled and YOLO_AVAILABLE:
+                        try:
+                            detection_result = detect_frame(frame)
+                            # Update FPS in detection result
+                            if hasattr(detection_result, 'fps'):
+                                detection_result.fps = self._current_fps
+                            self._last_detection_result = detection_result
+                            
+                            # Create annotated frame with detections
+                            annotated_frame = draw_detections(frame, detection_result)
+                            self._last_annotated_frame = annotated_frame
+                        except Exception as e:
+                            app.logger.error(f"[{self.cam_id}] Detection failed: {e}")
+                            self._last_detection_result = None
+                            self._last_annotated_frame = None
+                
+                # Small sleep to reduce CPU usage
+                time.sleep(0.033)  # ~30 FPS
+                
+            except Exception as e:
+                app.logger.error(f"[{self.cam_id}] Exception in main loop: {e}")
+                time.sleep(0.1)
+        
         # Cleanup
         if self._capture is not None:
             try:
                 self._capture.release()
-            except Exception:
-                pass
+                app.logger.info(f"[{self.cam_id}] Camera released")
+            except Exception as e:
+                app.logger.error(f"[{self.cam_id}] Error releasing camera: {e}")
+        
         app.logger.info(f"[{self.cam_id}] Worker stopped")
 
     def stop(self):
@@ -103,8 +171,7 @@ class CameraWorker(threading.Thread):
                 frame_to_encode = self._last_annotated_frame
             elif self._last_frame is not None:
                 frame_to_encode = self._last_frame
-            
-            if frame_to_encode is None:
+            else:
                 return None
                 
             ok, buf = cv2.imencode('.jpg', frame_to_encode, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
@@ -114,7 +181,17 @@ class CameraWorker(threading.Thread):
     
     def get_detection_result(self) -> Optional[DetectionResult]:
         with self._lock:
-            return self._last_detection_result
+            result = self._last_detection_result
+            if result is not None and hasattr(result, 'fps'):
+                result.fps = self._current_fps
+            return result
+    
+    def get_frame_dimensions(self):
+        return self._frame_width, self._frame_height
+    
+    def get_fps(self) -> float:
+        with self._lock:
+            return self._current_fps
     
     def toggle_detection(self, enabled: bool):
         self._detection_enabled = enabled and YOLO_AVAILABLE
@@ -147,27 +224,46 @@ class CameraManager:
             self._meta[cam_id] = {'url': url, 'name': name or cam_id, 'type': 'ip'}
 
     def remove(self, cam_id: str):
+        """Remove a camera and stop its worker"""
         with self._lock:
             if cam_id in self._workers:
+                try:
                 self._workers[cam_id].stop()
+                    app.logger.info(f"[{cam_id}] Worker stopped")
+                except Exception as e:
+                    app.logger.warning(f"[{cam_id}] Error stopping worker: {e}")
             self._workers.pop(cam_id, None)
+            if cam_id in self._meta:
             self._meta.pop(cam_id, None)
+                app.logger.info(f"[{cam_id}] Camera metadata removed")
 
     def start(self, cam_id: str, enable_detection: bool = True):
         with self._lock:
             if cam_id not in self._meta:
                 raise KeyError('Camera not found')
-            if cam_id in self._workers and self._workers[cam_id].is_alive():
+            # If worker exists but is dead, remove it first
+            if cam_id in self._workers:
+                if not self._workers[cam_id].is_alive():
+                    app.logger.info(f"[{cam_id}] Removing dead worker")
+                    self._workers.pop(cam_id, None)
+                else:
+                    # Worker is alive - just update detection if needed
+                    app.logger.info(f"[{cam_id}] Camera worker already running, toggling detection: {enable_detection}")
+                    self._workers[cam_id].toggle_detection(enable_detection)
                 return
-            worker = CameraWorker(cam_id, self._meta[cam_id]['url'], enable_detection)
-            self._workers[cam_id] = worker
-            worker.start()
+            try:
+                worker = CameraWorker(cam_id, self._meta[cam_id]['url'], enable_detection)
+                self._workers[cam_id] = worker
+                worker.start()
+                app.logger.info(f"[{cam_id}] Camera worker started successfully with detection={enable_detection}")
+            except Exception as e:
+                app.logger.error(f"[{cam_id}] Failed to start camera worker: {e}")
+                raise
 
     def stop(self, cam_id: str):
         with self._lock:
             if cam_id in self._workers:
                 self._workers[cam_id].stop()
-                # Let the thread exit asynchronously
 
     def get_jpeg(self, cam_id: str, annotated: bool = False) -> Optional[bytes]:
         with self._lock:
@@ -181,13 +277,35 @@ class CameraManager:
             worker = self._workers.get(cam_id)
         if not worker:
             return None
-        return worker.get_detection_result()
+        result = worker.get_detection_result()
+        if result is not None:
+            # Ensure FPS is set
+            if not hasattr(result, 'fps') or result.fps == 0.0:
+                result.fps = worker.get_fps()
+        return result
+    
+    def get_frame_dimensions(self, cam_id: str):
+        with self._lock:
+            worker = self._workers.get(cam_id)
+        if not worker:
+            return None, None
+        return worker.get_frame_dimensions()
     
     def toggle_detection(self, cam_id: str, enabled: bool):
         with self._lock:
             worker = self._workers.get(cam_id)
         if worker:
             worker.toggle_detection(enabled)
+    
+    def has_camera(self, cam_id: str) -> bool:
+        """Check if camera exists in metadata"""
+        with self._lock:
+            return cam_id in self._meta
+    
+    def get_worker(self, cam_id: str):
+        """Get worker for a camera"""
+        with self._lock:
+            return self._workers.get(cam_id)
 
 
 manager = CameraManager()
@@ -224,6 +342,16 @@ def add_camera():
         manager.add(cam_id, url, name)
         return jsonify({'success': True})
     except ValueError as e:
+        # Camera already exists - update URL and name if different, then return success
+        with manager._lock:
+            if cam_id in manager._meta:
+                # Update URL and name if provided
+                if url:
+                    manager._meta[cam_id]['url'] = url
+                if name:
+                    manager._meta[cam_id]['name'] = name
+                app.logger.info(f"[{cam_id}] Camera already exists, updated metadata")
+                return jsonify({'success': True, 'message': 'Camera already exists, updated'})
         return jsonify({'success': False, 'error': str(e)}), 409
 
 
@@ -240,30 +368,243 @@ def start_camera(cam_id):
 
 @app.route('/api/camera/<cam_id>/stop', methods=['POST'])
 def stop_camera(cam_id):
-    manager.stop(cam_id)
-    return jsonify({'success': True})
+    """Stop a camera"""
+    try:
+        if not manager.has_camera(cam_id):
+            return jsonify({'success': False, 'error': f'Camera {cam_id} not found'}), 404
+        manager.stop(cam_id)
+        return jsonify({'success': True, 'message': f'Camera {cam_id} stopped'})
+    except Exception as e:
+        app.logger.error(f"[{cam_id}] Error stopping camera: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/camera/<cam_id>/remove', methods=['DELETE'])
 def remove_camera(cam_id):
-    manager.remove(cam_id)
-    return jsonify({'success': True})
+    """Remove a camera from the system"""
+    try:
+        if not manager.has_camera(cam_id):
+            return jsonify({'success': False, 'error': f'Camera {cam_id} not found'}), 404
+        
+        manager.remove(cam_id)
+        app.logger.info(f"[{cam_id}] Camera removed successfully")
+        return jsonify({'success': True, 'message': f'Camera {cam_id} removed successfully'})
+    except Exception as e:
+        app.logger.error(f"[{cam_id}] Error removing camera: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/camera/<cam_id>/stream', methods=['GET'])
 def stream_frame(cam_id):
     """Return latest frame as base64 JSON for easy <img src="data:"> usage in the UI."""
-    annotated = request.args.get('annotated', 'false').lower() == 'true'
-    jpeg = manager.get_jpeg(cam_id, annotated)
-    if jpeg is None:
-        return jsonify({'success': False, 'error': 'no frame'}), 404
-    b64 = base64.b64encode(jpeg).decode('utf-8')
-    return jsonify({'success': True, 'frame': b64, 'ts': time.time()})
+    try:
+        if not manager.has_camera(cam_id):
+            return jsonify({'success': False, 'error': f'Camera {cam_id} not found'}), 404
+        
+        annotated = request.args.get('annotated', 'false').lower() == 'true'
+        jpeg = manager.get_jpeg(cam_id, annotated)
+        if jpeg is None:
+            return jsonify({'success': False, 'error': 'no frame available'}), 404
+        b64 = base64.b64encode(jpeg).decode('utf-8')
+        return jsonify({'success': True, 'frame': b64, 'ts': time.time()})
+    except Exception as e:
+        app.logger.error(f"[{cam_id}] Error streaming frame: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/camera/<cam_id>/detection', methods=['GET'])
+def get_detection_results(cam_id):
+    """Get detection results for a specific camera"""
+    try:
+        # Check if camera exists
+        if not manager.has_camera(cam_id):
+            return jsonify({
+                'success': False,
+                'error': f'Camera {cam_id} not found',
+                'frame_width': 640,
+                'frame_height': 360,
+                'fps': 0.0,
+                'persons': [],
+                'timestamp': time.time()
+            }), 404
+        
+        # Check if camera worker exists and is running
+        worker = manager.get_worker(cam_id)
+        if not worker:
+            return jsonify({
+                'success': True,
+                'frame_width': 640,
+                'frame_height': 360,
+                'fps': 0.0,
+                'persons': [],
+                'timestamp': time.time()
+            })
+        
+        result = manager.get_detection_result(cam_id)
+        if result is None:
+            # Return empty result instead of 404 to avoid noisy errors while detection warms up
+            frame_width, frame_height = manager.get_frame_dimensions(cam_id) or (640, 360)
+            return jsonify({
+                'success': True,
+                'frame_width': frame_width,
+                'frame_height': frame_height,
+                'fps': worker.get_fps() if worker else 0.0,
+                'persons': [],
+                'timestamp': time.time()
+            })
+        
+    except Exception as e:
+        app.logger.error(f"[{cam_id}] Error getting detection results: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'frame_width': 640,
+            'frame_height': 360,
+            'fps': 0.0,
+            'persons': [],
+            'timestamp': time.time()
+        }), 500
+    
+        # Get frame dimensions from worker
+        frame_width, frame_height = manager.get_frame_dimensions(cam_id) or (640, 360)
+        
+        # Convert DetectionResult to JSON-serializable format
+        persons_data = []
+        for person in result.persons:
+            keypoints_data = []
+            for kpt in person.keypoints:
+                keypoints_data.append({
+                    'x': kpt.x,
+                    'y': kpt.y,
+                    'confidence': kpt.confidence,
+                    'visible': kpt.visible
+                })
+            
+            persons_data.append({
+                'id': person.id,
+                'track_id': getattr(person, 'track_id', person.id),
+                'bbox': person.bbox,
+                'head_bbox': getattr(person, 'head_bbox', None),
+                'confidence': person.confidence,
+                'keypoints': keypoints_data,
+                'drowsiness_score': person.drowsiness_score,
+                'drowsiness_state': person.drowsiness_state,
+                'last_update': person.last_update
+            })
+        
+        return jsonify({
+            'success': True,
+            'detection_result': {
+                'frame_id': result.frame_id,
+                'timestamp': result.timestamp,
+                'persons': persons_data,
+                'fps': result.fps if hasattr(result, 'fps') and result.fps else worker.get_fps() if worker else 0.0,
+                'processing_time': result.processing_time if hasattr(result, 'processing_time') else 0.0,
+                'frame_width': frame_width,
+                'frame_height': frame_height
+            },
+            'frame_width': frame_width,
+            'frame_height': frame_height,
+            'fps': result.fps if hasattr(result, 'fps') and result.fps else worker.get_fps() if worker else 0.0,
+            'persons': persons_data,
+            'timestamp': result.timestamp if hasattr(result, 'timestamp') else time.time()
+        })
+
+
+@app.route('/api/detect/frame', methods=['POST', 'OPTIONS'])
+def detect_frame_endpoint():
+    """Detect persons and drowsiness from a frame sent from frontend (for webcam)"""
+    app.logger.info("Received request to /api/detect/frame")
+    
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        response = jsonify({'success': True})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        return response
+    
+    if not YOLO_AVAILABLE:
+        app.logger.error("YOLO detector not available")
+        return jsonify({'success': False, 'error': 'YOLO detector not available'}), 503
+    
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        frame_base64 = data.get('frame')
+        
+        if not frame_base64:
+            return jsonify({'success': False, 'error': 'frame data required'}), 400
+        
+        # Decode base64 image
+        try:
+            # Remove data URL prefix if present
+            if ',' in frame_base64:
+                frame_base64 = frame_base64.split(',')[1]
+            
+            frame_bytes = base64.b64decode(frame_base64)
+            frame_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+            frame = cv2.imdecode(frame_array, cv2.IMREAD_COLOR)
+            
+            if frame is None:
+                return jsonify({'success': False, 'error': 'Failed to decode image'}), 400
+            
+            h, w = frame.shape[:2]
+            app.logger.info(f"Decoded frame: {w}x{h}")
+            
+        except Exception as e:
+            app.logger.error(f"Error decoding frame: {e}")
+            return jsonify({'success': False, 'error': f'Failed to decode frame: {str(e)}'}), 400
+        
+        # Run detection
+        app.logger.info(f"Running detection on frame {frame.shape}")
+        result = detect_frame(frame)
+        app.logger.info(f"Detection completed: {len(result.persons)} persons detected")
+        
+        # Convert DetectionResult to JSON-serializable format
+        persons_data = []
+        for person in result.persons:
+            keypoints_data = []
+            for kpt in person.keypoints:
+                keypoints_data.append({
+                    'x': kpt.x,
+                    'y': kpt.y,
+                    'confidence': kpt.confidence,
+                    'visible': kpt.visible
+                })
+            
+            persons_data.append({
+                'id': person.id,
+                'track_id': getattr(person, 'track_id', person.id),
+                'bbox': person.bbox,
+                'head_bbox': getattr(person, 'head_bbox', None),
+                'confidence': person.confidence,
+                'keypoints': keypoints_data,
+                'drowsiness_score': person.drowsiness_score,
+                'drowsiness_state': person.drowsiness_state,
+                'last_update': person.last_update
+            })
+        
+        return jsonify({
+            'success': True,
+            'detection_result': {
+                'frame_id': result.frame_id,
+                'timestamp': result.timestamp,
+                'persons': persons_data,
+                'fps': result.fps,
+                'processing_time': result.processing_time,
+                'frame_width': w,
+                'frame_height': h
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        app.logger.error(f"Error in detect_frame_endpoint: {e}\n{traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/system/stats', methods=['GET'])
 def system_stats():
-    # Keep it lightweight without extra deps
     uptime = int(time.time() - _start_time)
     cams = manager.list()
     
@@ -295,47 +636,6 @@ def system_stats():
     })
 
 
-@app.route('/api/camera/<cam_id>/detection', methods=['GET'])
-def get_detection_results(cam_id):
-    """Get detection results for a specific camera"""
-    result = manager.get_detection_result(cam_id)
-    if result is None:
-        return jsonify({'success': False, 'error': 'no detection data'}), 404
-    
-    # Convert DetectionResult to JSON-serializable format
-    persons_data = []
-    for person in result.persons:
-        keypoints_data = []
-        for kpt in person.keypoints:
-            keypoints_data.append({
-                'x': kpt.x,
-                'y': kpt.y,
-                'confidence': kpt.confidence,
-                'visible': kpt.visible
-            })
-        
-        persons_data.append({
-            'id': person.id,
-            'bbox': person.bbox,
-            'confidence': person.confidence,
-            'keypoints': keypoints_data,
-            'drowsiness_score': person.drowsiness_score,
-            'drowsiness_state': person.drowsiness_state,
-            'last_update': person.last_update
-        })
-    
-    return jsonify({
-        'success': True,
-        'detection_result': {
-            'frame_id': result.frame_id,
-            'timestamp': result.timestamp,
-            'persons': persons_data,
-            'fps': result.fps,
-            'processing_time': result.processing_time
-        }
-    })
-
-
 @app.route('/api/camera/<cam_id>/detection/toggle', methods=['POST'])
 def toggle_detection(cam_id):
     """Toggle detection on/off for a specific camera"""
@@ -363,9 +663,16 @@ def initialize_detection():
 
 
 if __name__ == '__main__':
+    # Initialize YOLO detector on startup
+    if YOLO_AVAILABLE:
+        print("Initializing YOLO detector...")
+        success = initialize_detector('yolo11n-pose.pt')
+        if success:
+            print("✅ YOLO detector initialized successfully")
+        else:
+            print("❌ Failed to initialize YOLO detector")
+    else:
+        print("⚠️ YOLO not available - detection features disabled")
+    
     # Bind to localhost only; Electron opens from file://
     app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)
-
-
-
-

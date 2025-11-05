@@ -20,6 +20,7 @@ interface CameraGridProps {
   onToggleLogging?: (cameraId: string) => void;
   onCapturePhoto?: (cameraId: string) => void;
   onRecordVideo?: (cameraId: string) => void;
+  onUpdateStudents?: (cameraId: string, students: any[], fps: number) => void;
   showOverlay: boolean;
   showPerformance: boolean;
 }
@@ -35,6 +36,7 @@ export function CameraGrid({
   onToggleLogging,
   onCapturePhoto,
   onRecordVideo,
+  onUpdateStudents,
   showOverlay,
   showPerformance,
 }: CameraGridProps) {
@@ -97,6 +99,7 @@ export function CameraGrid({
             <CameraCard
               key={camera.id}
               camera={camera}
+              onUpdateStudents={onUpdateStudents}
               onToggle={onToggleCamera}
               onPopOut={onPopOut}
               onConfigure={onConfigure}

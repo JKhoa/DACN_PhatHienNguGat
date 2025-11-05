@@ -21,8 +21,9 @@ interface Student {
   state: 'normal' | 'sleepy' | 'head_down';
   confidence: number;
   sleepDuration: number;
-  lastUpdate: string;
+  lastUpdate: string | Date;
   bbox: [number, number, number, number];
+  headBbox?: [number, number, number, number];
 }
 
 interface StudentTrackingDetailsProps {
@@ -75,8 +76,9 @@ export const StudentTrackingDetails: React.FC<StudentTrackingDetailsProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const formatTime = (isoString: string) => {
-    return new Date(isoString).toLocaleTimeString('vi-VN');
+  const formatTime = (input: string | Date) => {
+    const d = input instanceof Date ? input : new Date(input);
+    return d.toLocaleTimeString('vi-VN');
   };
 
   const sleepyStudents = students.filter(s => s.state !== 'normal');

@@ -19,6 +19,6 @@ if __name__ == "__main__":
     else:
         print("No requirements.txt found for backend, skipping install.")
 
-    print("Starting Flask backend server (python-backend/server.py) on http://127.0.0.1:5000 ...")
+    print("Starting Flask+SocketIO backend (python-backend/server_with_tracking_backup.py) on http://127.0.0.1:5000 ...")
     # Use console-owning run so you can see logs
-    subprocess.run([sys.executable, str(BACKEND_DIR / "server.py")], check=False)
+    subprocess.run([sys.executable, str(BACKEND_DIR / "server_with_tracking_backup.py")], check=False)

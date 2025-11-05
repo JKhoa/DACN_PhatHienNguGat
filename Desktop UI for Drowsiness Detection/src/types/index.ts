@@ -59,7 +59,7 @@ export interface LogEvent {
   cameraName: string;
   studentId?: string;
   studentPosition?: string;
-  type: 'sleepy' | 'wake_up' | 'head_down' | 'connection' | 'error' | 'detection_start' | 'detection_end';
+  type: 'sleepy' | 'sleeping' | 'wake_up' | 'head_down' | 'connection' | 'error' | 'detection_start' | 'detection_end';
   message: string;
   duration?: number;
   studentCount?: number;

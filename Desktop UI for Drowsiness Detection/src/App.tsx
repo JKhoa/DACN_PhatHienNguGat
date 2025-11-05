@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Camera, LogEvent, SystemStats } from './types';
 import { mockCameras, generateMockLog, defaultCameraConfig } from './lib/mockData';
-import { detectWorkingCamera } from './lib/webcamRegistry';
 import { Toolbar } from './components/Toolbar';
 import { StatusBar } from './components/StatusBar';
 import { CameraSidebar } from './components/CameraSidebar';
@@ -16,9 +15,16 @@ import {
 } from './components/ui/resizable';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
+import { initAutoFix } from './utils/autoFixErrors';
 
 export default function App() {
-  const [cameras, setCameras] = useState<Camera[]>(mockCameras);
+  // Initialize auto-fix on mount
+  useEffect(() => {
+    initAutoFix();
+    console.log('[App] Auto-fix system initialized');
+  }, []);
+  // Start with no cameras; sync from backend or add via dialog to avoid mock confusion
+  const [cameras, setCameras] = useState<Camera[]>([]);
   const [logs, setLogs] = useState<LogEvent[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>();
   const [gridSize, setGridSize] = useState<'1x1' | '2x2' | '3x3' | '4x4'>('2x2');
@@ -35,94 +41,12 @@ export default function App() {
     totalFPS: 0,
     runningCameras: 0,
     totalCameras: cameras.length,
+    totalStudents: 0,
+    sleepyStudents: 0,
     cpuUsage: 0,
     gpuUsage: 45,
     reconnectCount: 0,
   });
-
-  // Initialize YOLO detector on app startup
-  useEffect(() => {
-    const initializeYOLO = async () => {
-      try {
-        console.log('Initializing YOLO detector...');
-        const response = await fetch('http://127.0.0.1:5000/api/detection/initialize', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ model_path: 'yolo11n-pose.pt' }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            console.log('YOLO detector initialized successfully');
-            toast.success('YOLO detector đã được khởi tạo');
-          } else {
-            console.error('Failed to initialize YOLO detector:', data.error);
-            toast.error('Không thể khởi tạo YOLO detector');
-          }
-        } else {
-          console.error('Failed to initialize YOLO detector');
-          toast.error('Không thể kết nối với backend để khởi tạo YOLO');
-        }
-      } catch (error) {
-        console.error('Error initializing YOLO detector:', error);
-        toast.error('Lỗi khi khởi tạo YOLO detector');
-      }
-    };
-
-    // Initialize YOLO after a short delay to ensure backend is ready
-    const timer = setTimeout(initializeYOLO, 3000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Auto-detect camera on app startup
-  useEffect(() => {
-    const autoDetectCamera = async () => {
-      try {
-        console.log('Auto-detecting camera on startup...');
-        const workingCamera = await detectWorkingCamera();
-        
-        if (workingCamera) {
-          console.log(`Auto-detected camera: ${workingCamera.label}`);
-          
-          // Check if this camera is already added
-          const existingCamera = cameras.find(c => c.deviceId?.toString() === workingCamera.deviceId);
-          
-          if (!existingCamera) {
-            // Add the detected camera
-            const newCamera: Camera = {
-              id: `webcam-${workingCamera.deviceId}`,
-              name: workingCamera.label,
-              type: 'webcam',
-              status: 'offline',
-              fps: 0,
-              isRunning: false,
-              students: [],
-              totalStudents: 30,
-              sleepyStudents: 0,
-              deviceId: parseInt(workingCamera.deviceId),
-              config: defaultCameraConfig,
-            };
-            
-            setCameras(prev => [...prev, newCamera]);
-            toast.success(`Đã tự động phát hiện camera: ${workingCamera.label}`);
-          } else {
-            console.log('Camera already exists in list');
-          }
-        } else {
-          console.log('No working camera detected on startup');
-        }
-      } catch (error) {
-        console.error('Error auto-detecting camera:', error);
-      }
-    };
-    
-    // Delay auto-detection to allow app to fully load
-    const timer = setTimeout(autoDetectCamera, 2000);
-    return () => clearTimeout(timer);
-  }, []); // Only run once on mount
 
   // Toggle dark mode
   useEffect(() => {
@@ -142,32 +66,59 @@ export default function App() {
         
         if (result.success && result.cameras) {
           // Convert Python backend format to frontend format
-          const backendCameras = Object.values(result.cameras).map((cam: any) => ({
+          const backendCameras = (Array.isArray(result.cameras) ? result.cameras : Object.values(result.cameras)).map((cam: any) => {
+            const mappedStatus = cam.status === 'running' ? 'online' : (cam.status === 'stopped' ? 'offline' : cam.status);
+            return {
             id: cam.id,
             name: cam.name,
-            type: cam.config?.type || 'webcam',
-            status: cam.status,
-            fps: cam.fps || 0,
-            isRunning: cam.status === 'online',
-            students: cam.students || [],
-            totalStudents: cam.totalStudents || 0,
-            sleepyStudents: cam.sleepyStudents || 0,
-            deviceId: cam.config?.deviceId,
+              type: cam.type || cam.config?.type || 'ip',
+              status: mappedStatus,
+              fps: cam.fps || 0,
+              isRunning: mappedStatus === 'online',
+              students: cam.students || [],
+              totalStudents: cam.totalStudents || 0,
+              sleepyStudents: cam.sleepyStudents || 0,
+              deviceId: cam.config?.deviceId,
             brand: cam.config?.brand,
             ip: cam.config?.ip,
             port: cam.config?.port,
             username: cam.config?.username,
             password: cam.config?.password,
             streamQuality: cam.config?.streamQuality,
-            rtspUrl: cam.config?.rtspUrl,
+              rtspUrl: cam.config?.rtspUrl || cam.url,
             config: cam.config || { ...defaultCameraConfig },
-            errorMessage: cam.status === 'offline' ? 'Camera offline' : undefined,
-          }));
+              errorMessage: mappedStatus === 'offline' ? 'Camera offline' : undefined,
+            } as Camera;
+          });
+          
           // Merge: keep local webcams (handled by browser) + backend IP cams
-          setCameras(prev => {
-            const localWebcams = prev.filter(c => c.type === 'webcam');
-            // For IP cams, backend is source of truth. Remove existing IP cams and replace with backend list.
-            return [...localWebcams, ...backendCameras.filter((c: any) => c.type !== 'webcam')];
+          // Also preserve local IP cameras that are not in backend (they might be in process of being added)
+          setCameras((prev: Camera[]) => {
+            const localWebcams = prev.filter((c: Camera) => c.type === 'webcam');
+            const localIpCams = prev.filter((c: Camera) => c.type === 'ip');
+            const backendCamIds = new Set(backendCameras.map((c: any) => c.id));
+            
+            // Keep local IP cams that are not in backend yet (will be synced later)
+            const missingLocalCams = localIpCams.filter((c: Camera) => !backendCamIds.has(c.id));
+            
+            // Update existing cameras with backend status, add new ones
+            const updatedCameras = prev.map((c: Camera) => {
+              if (c.type === 'webcam') return c;
+              const backendCam = backendCameras.find((bc: any) => bc.id === c.id);
+              if (backendCam) {
+                return { ...c, ...backendCam, rtspUrl: c.rtspUrl || backendCam.rtspUrl };
+              }
+              return c;
+            });
+            
+            // Add new backend cameras that don't exist locally
+            const newBackendCams = backendCameras.filter((bc: any) => 
+              !prev.find((c: Camera) => c.id === bc.id)
+            );
+            
+            // Combine: webcams + missing local IP cams + updated IP cams + new backend cams
+            const updatedIpCams = updatedCameras.filter((c: Camera) => c.type === 'ip');
+            return [...localWebcams, ...missingLocalCams, ...updatedIpCams, ...newBackendCams];
           });
         }
       } catch (error) {
@@ -178,8 +129,8 @@ export default function App() {
     // Initial sync
     syncCameras();
     
-    // Sync every 2 seconds
-    const interval = setInterval(syncCameras, 2000);
+    // Sync every 5 seconds (reduced frequency to avoid conflicts)
+    const interval = setInterval(syncCameras, 5000);
     
     return () => clearInterval(interval);
   }, []);
@@ -187,7 +138,7 @@ export default function App() {
   // Generate mock logs
   useEffect(() => {
     const interval = setInterval(() => {
-      const runningCameras = cameras.filter(c => c.isRunning && c.status === 'online');
+  const runningCameras = cameras.filter((c: Camera) => c.isRunning && c.status === 'online');
       if (runningCameras.length > 0 && loggingEnabled) {
         const randomCamera = runningCameras[Math.floor(Math.random() * runningCameras.length)];
         
@@ -202,7 +153,7 @@ export default function App() {
           student,
           randomCamera.totalStudents
         );
-        setLogs(prev => [newLog, ...prev].slice(0, 100));
+  setLogs((prev: LogEvent[]) => [newLog, ...prev].slice(0, 100));
 
         if (newLog.type === 'sleepy' && student) {
           toast.warning(`${randomCamera.name}: Phát hiện buồn ngủ!`, {
@@ -215,53 +166,26 @@ export default function App() {
     return () => clearInterval(interval);
   }, [cameras, loggingEnabled]);
 
-  // Simulate student state changes
+  // Track cameras being auto-fixed to avoid repeated attempts
+  const autoFixInProgress = useRef<Set<string>>(new Set());
+  const lastAutoFixAttempt = useRef<Record<string, number>>({});
+
+  // Recompute system stats whenever cameras state changes (driven by WS updates)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCameras(prev => prev.map(camera => {
-        if (!camera.isRunning || camera.status !== 'online') return camera;
+    const running = cameras.filter((c: Camera) => c.isRunning && c.status === 'online');
+    const totalFPS = running.reduce((sum: number, c: Camera) => sum + (c.fps || 0), 0);
+    const totalStudents = running.reduce((sum: number, c: Camera) => sum + (c.students?.length || 0), 0);
+    const sleepyStudents = running.reduce((sum: number, c: Camera) => sum + (c.sleepyStudents || 0), 0);
 
-        // Update each student's state
-        const updatedStudents = camera.students.map(student => {
-          const rand = Math.random();
-          let newState = student.state;
-          let newSleepDuration = student.sleepDuration;
-
-          // State transitions
-          if (student.state === 'sleepy') {
-            newSleepDuration += 3; // 3 seconds per update
-            if (rand < 0.1) newState = 'normal'; // 10% chance to wake up
-            if (rand > 0.95) newState = 'head_down'; // 5% chance to head down
-          } else if (student.state === 'head_down') {
-            if (rand < 0.15) newState = 'normal'; // 15% chance to wake up
-          } else {
-            // Normal state
-            if (rand < 0.02) newState = 'sleepy'; // 2% chance to get sleepy
-            newSleepDuration = 0;
-          }
-
-          return {
-            ...student,
-            state: newState,
-            sleepDuration: newSleepDuration,
-            confidence: 0.7 + Math.random() * 0.25,
-            lastUpdate: new Date(),
-          };
-        });
-
-        const sleepyStudents = updatedStudents.filter(s => s.state === 'sleepy' || s.state === 'head_down').length;
-
-        return {
-          ...camera,
-          students: updatedStudents,
-          sleepyStudents,
-          fps: Math.floor(Math.random() * 3 + 28),
-        };
-      }));
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
+    setStats((prevStats) => ({
+      ...prevStats,
+      totalFPS,
+      runningCameras: running.length,
+      totalCameras: cameras.length,
+      totalStudents,
+      sleepyStudents,
+    }));
+  }, [cameras]);
 
   const handleStartAll = async () => {
     // Start IP cameras in backend; webcams are handled in browser
@@ -269,26 +193,40 @@ export default function App() {
       for (const cam of cameras) {
         if (cam.type !== 'webcam') {
           try {
-            await fetch(`http://127.0.0.1:5000/api/camera/${cam.id}/start`, { method: 'POST' });
+            await fetch(`http://127.0.0.1:5000/api/camera/${cam.id}/start`, { 
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ enable_detection: true })
+            });
           } catch {}
         }
       }
     } catch {}
 
-    setCameras(prev => prev.map(c => {
+  setCameras((prev: Camera[]) => prev.map((c: Camera) => {
       // Generate students when starting
       const students = c.type === 'ip' && c.ip 
-        ? Array.from({ length: Math.floor(Math.random() * 10 + (c.totalStudents - 5)) }, (_, i) => ({
-            id: `student-${i + 1}`,
-            position: {
-              x: 50 + (i % 8) * 75 + Math.random() * 20,
-              y: 70 + Math.floor(i / 8) * 60 + Math.random() * 20,
-            },
-            state: 'normal' as const,
-            confidence: 0.7 + Math.random() * 0.25,
-            sleepDuration: 0,
-            lastUpdate: new Date(),
-          }))
+        ? Array.from({ length: Math.floor(Math.random() * 10 + (c.totalStudents - 5)) }, (_, i) => {
+            const px = 50 + (i % 8) * 75 + Math.random() * 20;
+            const py = 70 + Math.floor(i / 8) * 60 + Math.random() * 20;
+            const bw = 60 + Math.random() * 30; // bbox width
+            const bh = 80 + Math.random() * 40; // bbox height
+            const x1 = Math.max(0, Math.floor(px - bw / 2));
+            const y1 = Math.max(0, Math.floor(py - bh / 2));
+            const x2 = Math.floor(x1 + bw);
+            const y2 = Math.floor(y1 + bh);
+            const headH = Math.floor(bh * 0.3);
+            return {
+              id: `student-${i + 1}`,
+              position: { x: px, y: py },
+              state: 'normal' as const,
+              confidence: 0.7 + Math.random() * 0.25,
+              sleepDuration: 0,
+              lastUpdate: new Date(),
+              bbox: [x1, y1, x2, y2] as [number, number, number, number],
+              headBbox: [x1, y1, x2, y1 + headH] as [number, number, number, number],
+            };
+          })
         : [];
       
       return { 
@@ -317,7 +255,7 @@ export default function App() {
       }
       
       // Update local state
-      setCameras(prev => prev.map(c => ({ ...c, isRunning: false, students: [], sleepyStudents: 0 })));
+  setCameras((prev: Camera[]) => prev.map((c: Camera) => ({ ...c, isRunning: false, students: [], sleepyStudents: 0 })));
       toast.info('Đã dừng tất cả camera');
     } catch (error) {
       console.error('Error stopping all cameras:', error);
@@ -326,14 +264,14 @@ export default function App() {
   };
 
   const handleToggleCamera = async (cameraId: string) => {
-    const camera = cameras.find(c => c.id === cameraId);
+  const camera = cameras.find((c: Camera) => c.id === cameraId);
     if (!camera) return;
 
     try {
       if (!camera.isRunning) {
         if (camera.type === 'webcam') {
           // Do NOT start webcam in backend to prevent "device in use" conflicts. Use getUserMedia only.
-          setCameras(prev => prev.map(c => 
+          setCameras((prev: Camera[]) => prev.map((c: Camera) => 
             c.id === cameraId 
               ? { ...c, isRunning: true, status: 'online' as const }
               : c
@@ -343,13 +281,15 @@ export default function App() {
         }
         // Start camera via Python backend
         const response = await fetch(`http://127.0.0.1:5000/api/camera/${cameraId}/start`, {
-          method: 'POST'
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enable_detection: true })
         });
         
         const result = await response.json();
         
         if (result.success) {
-          setCameras(prev => prev.map(c => 
+          setCameras((prev: Camera[]) => prev.map((c: Camera) => 
             c.id === cameraId 
               ? { ...c, isRunning: true, status: 'online' as const }
               : c
@@ -360,7 +300,7 @@ export default function App() {
         }
       } else {
         if (camera.type === 'webcam') {
-          setCameras(prev => prev.map(c => 
+          setCameras((prev: Camera[]) => prev.map((c: Camera) => 
             c.id === cameraId 
               ? { ...c, isRunning: false, students: [], sleepyStudents: 0 }
               : c
@@ -376,7 +316,7 @@ export default function App() {
         const result = await response.json();
         
         if (result.success) {
-          setCameras(prev => prev.map(c => 
+          setCameras((prev: Camera[]) => prev.map((c: Camera) => 
             c.id === cameraId 
               ? { ...c, isRunning: false, students: [], sleepyStudents: 0 }
               : c
@@ -395,21 +335,45 @@ export default function App() {
   const handleDeleteCamera = async () => {
     if (selectedCameraId) {
       try {
+        const camera = cameras.find((c: Camera) => c.id === selectedCameraId);
+        if (!camera) {
+          toast.error('Camera không tồn tại');
+          return;
+        }
+
+        // Only call backend API for IP cameras, webcams are handled locally
+        if (camera.type !== 'webcam') {
         const response = await fetch(`http://127.0.0.1:5000/api/camera/${selectedCameraId}/remove`, {
           method: 'DELETE'
         });
+          
+          // Check if response is JSON
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Non-JSON response:', text);
+            throw new Error('Backend trả về dữ liệu không hợp lệ');
+          }
+          
         const result = await response.json();
+          
+          if (!result.success) {
+            toast.error(`Lỗi xóa camera: ${result.error || 'Unknown error'}`);
+            return;
+          }
+        }
         
-        if (result.success) {
-          setCameras(prev => prev.filter(c => c.id !== selectedCameraId));
+        // Remove from local state regardless of type
+        setCameras((prev: Camera[]) => prev.filter((c: Camera) => c.id !== selectedCameraId));
           setSelectedCameraId(undefined);
           toast.success('Đã xóa camera');
-        } else {
-          toast.error(`Lỗi xóa camera: ${result.error}`);
-        }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error deleting camera:', error);
-        toast.error('Lỗi kết nối đến backend');
+        if (error.message) {
+          toast.error(`Lỗi xóa camera: ${error.message}`);
+        } else {
+          toast.error('Lỗi kết nối đến backend');
+        }
       }
     } else {
       toast.error('Vui lòng chọn camera để xóa');
@@ -418,24 +382,44 @@ export default function App() {
 
   const handleClearAllCameras = async () => {
     try {
-      // Remove all cameras from Python backend
+      // Remove all cameras from Python backend (only IP cameras)
+      const errors: string[] = [];
       for (const camera of cameras) {
         if (camera.type !== 'webcam') {
+          try {
           const response = await fetch(`http://127.0.0.1:5000/api/camera/${camera.id}/remove`, {
             method: 'DELETE'
           });
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
           const result = await response.json();
-          console.log(`Remove camera ${camera.id}:`, result);
+              if (!result.success) {
+                errors.push(`${camera.name}: ${result.error || 'Unknown error'}`);
+              }
+            } else {
+              errors.push(`${camera.name}: Backend trả về dữ liệu không hợp lệ`);
+            }
+          } catch (error: any) {
+            console.error(`Error removing camera ${camera.id}:`, error);
+            errors.push(`${camera.name}: ${error.message || 'Connection error'}`);
+          }
         }
       }
       
-      // Clear local state
+      // Clear local state regardless of backend errors
       setCameras([]);
       setSelectedCameraId(undefined);
+      
+      if (errors.length > 0) {
+        toast.warning(`Đã xóa camera nhưng có ${errors.length} lỗi: ${errors.slice(0, 3).join(', ')}`);
+      } else {
       toast.success('Đã xóa tất cả camera');
-    } catch (error) {
+      }
+    } catch (error: any) {
       console.error('Error clearing all cameras:', error);
-      toast.error('Lỗi xóa camera');
+      toast.error(`Lỗi xóa camera: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -445,7 +429,7 @@ export default function App() {
   };
 
   const handleConfigureCamera = (cameraId: string) => {
-    const camera = cameras.find(c => c.id === cameraId);
+    const camera = cameras.find((c: Camera) => c.id === cameraId);
     setEditingCamera(camera);
     setCameraDialogOpen(true);
   };
@@ -470,17 +454,43 @@ export default function App() {
         });
         result = await response.json();
         console.log('Backend response:', result);
+        
+        // If add succeeded (even if camera already exists), try to start it automatically
+        if (result.success && cameraData.id) {
+          // Wait a bit for backend to process
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Start camera with detection enabled
+          try {
+            const startResponse = await fetch(`http://127.0.0.1:5000/api/camera/${cameraData.id}/start`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ enable_detection: true }),
+            });
+            
+            if (startResponse.ok) {
+              console.log(`[App] Auto-started camera ${cameraData.id} with detection`);
+              // Set status to online and running
+              cameraData.status = 'online';
+              cameraData.isRunning = true;
+            } else {
+              console.warn(`[App] Failed to auto-start camera ${cameraData.id}`);
+            }
+          } catch (startError) {
+            console.warn(`[App] Error starting camera ${cameraData.id}:`, startError);
+          }
+        }
       }
       
       if (result.success) {
         // Update local state
         if (editingCamera) {
-          setCameras(prev => prev.map(c => 
+          setCameras((prev: Camera[]) => prev.map((c: Camera) => 
             c.id === editingCamera.id ? { ...c, ...cameraData } : c
           ));
           toast.success('Đã cập nhật camera');
         } else {
-          setCameras(prev => [...prev, cameraData as Camera]);
+          setCameras((prev: Camera[]) => [...prev, cameraData as Camera]);
           toast.success('Đã thêm camera mới');
         }
       } else {
@@ -493,7 +503,7 @@ export default function App() {
   };
 
   const handlePopOut = (cameraId: string) => {
-    const camera = cameras.find(c => c.id === cameraId);
+    const camera = cameras.find((c: Camera) => c.id === cameraId);
     if (camera) {
       // Create a new window for the camera
       const popupWindow = window.open('', `camera-${cameraId}`, 'width=800,height=600');
@@ -523,7 +533,7 @@ export default function App() {
   const handleSaveLayout = () => {
     const layout = {
       gridSize,
-      cameras: cameras.map(c => c.id),
+  cameras: cameras.map((c: Camera) => c.id),
     };
     localStorage.setItem('camera-layout', JSON.stringify(layout));
     toast.success('Đã lưu bố cục');
@@ -542,7 +552,7 @@ export default function App() {
 
   const handleExportConfig = () => {
     const config = {
-      cameras: cameras.map(c => ({
+  cameras: cameras.map((c: Camera) => ({
         name: c.name,
         type: c.type,
         config: c.config,
@@ -580,7 +590,7 @@ export default function App() {
   };
 
   const handleCapturePhoto = (cameraId: string) => {
-    const camera = cameras.find(c => c.id === cameraId);
+    const camera = cameras.find((c: Camera) => c.id === cameraId);
     if (camera && camera.status === 'online') {
       // Simulate photo capture
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -594,7 +604,7 @@ export default function App() {
   };
 
   const handleRecordVideo = (cameraId: string) => {
-    const camera = cameras.find(c => c.id === cameraId);
+    const camera = cameras.find((c: Camera) => c.id === cameraId);
     if (camera && camera.status === 'online') {
       // Simulate video recording
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -610,7 +620,7 @@ export default function App() {
   const handleExportLogs = () => {
     const csv = [
       'Timestamp,Camera,Type,Message,Duration',
-      ...logs.map(log => 
+      ...logs.map((log: LogEvent) => 
         `${log.timestamp.toISOString()},${log.cameraName},${log.type},${log.message},${log.duration || ''}`
       ),
     ].join('\n');
@@ -624,7 +634,7 @@ export default function App() {
     toast.success('Đã export logs');
   };
 
-  const isAllRunning = cameras.every(c => c.isRunning);
+  const isAllRunning = cameras.every((c: Camera) => c.isRunning);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -670,6 +680,19 @@ export default function App() {
             gridSize={gridSize}
             onGridSizeChange={setGridSize}
             onToggleCamera={handleToggleCamera}
+            onUpdateStudents={(cameraId: string, students: any[], fps: number) => {
+              setCameras((prev: Camera[]) => prev.map((c: Camera) => 
+                c.id === cameraId 
+                  ? { 
+                      ...c, 
+                      students,
+                      sleepyStudents: students.filter((s: any) => s.state === 'sleepy' || s.state === 'head_down').length,
+                      totalStudents: students.length,
+                      fps,
+                    }
+                  : c
+              ));
+            }}
             onPopOut={handlePopOut}
             onConfigure={handleConfigureCamera}
             onToggleOverlay={handleToggleOverlay}
