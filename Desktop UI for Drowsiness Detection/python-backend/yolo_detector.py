@@ -236,6 +236,8 @@ class DrowsinessAnalyzer:
     Supports two modes:
     1. CLASS-BASED (trained model): Uses model class predictions (binhthuong, ngugat, gucxuongban)
     2. KEYPOINT-BASED (pretrained model): Analyzes keypoints manually
+    
+    Enhanced with temporal smoothing to reduce false positives
     """
     
     def __init__(self, use_class_predictions: bool = True):
@@ -244,24 +246,35 @@ class DrowsinessAnalyzer:
             use_class_predictions: If True, use model class predictions. If False, analyze keypoints manually.
         """
         self.use_class_predictions = use_class_predictions
-        self.eye_closed_threshold = 0.3
-        self.head_tilt_threshold = 30.0  # degrees
-        self.drowsiness_history = {}  # person_id -> deque of states
-        self.min_drowsiness_frames = 3  # frames to confirm drowsiness (faster response)
+        # Disable eye tracking - not reliable with classroom cameras
+        self.use_eye_tracking = False
+        
+        # Temporal smoothing parameters (INCREASED for stability)
+        self.drowsiness_history = {}  # person_id -> list of recent states
+        self.history_length = 15  # Keep 15 frames (~3 seconds at 5 FPS)
+        self.drowsy_threshold = 10  # Need 10/15 frames to confirm drowsy (67%)
+        self.sleeping_threshold = 12  # Need 12/15 frames to confirm sleeping (80%)
         
         # Class name mappings for trained model
         self.class_to_state = {
             'binhthuong': 'awake',
-            'ngugat': 'drowsy', 
-            'gucxuongban': 'sleeping',
+            'ngugat': 'drowsy',  # Slight head drop
+            'gucxuongban': 'sleeping',  # Full head down on desk
             # Fallback for English names
             'awake': 'awake',
             'drowsy': 'drowsy',
             'sleeping': 'sleeping',
         }
         
+        # State confidence scores
+        self.state_scores = {
+            'awake': 0.1,
+            'drowsy': 0.6,
+            'sleeping': 0.9
+        }
+        
     def analyze_person(self, person: PersonDetection, class_name: str = None) -> PersonDetection:
-        """Analyze a person's pose to determine drowsiness state
+        """Analyze a person's pose to determine drowsiness state with temporal smoothing
         
         Args:
             person: PersonDetection object
@@ -271,66 +284,109 @@ class DrowsinessAnalyzer:
             Updated PersonDetection with drowsiness_state and drowsiness_score
         """
         
+        # Get raw prediction from model or keypoint analysis
+        raw_state = 'awake'
+        raw_score = 0.1
+        
         # MODE 1: Use class predictions from trained model (PREFERRED)
         if self.use_class_predictions and class_name:
-            # Convert Vietnamese class name to English state
-            state = self.class_to_state.get(class_name.lower(), 'awake')
+            # Map Vietnamese class to state
+            predicted_state = self.class_to_state.get(class_name.lower(), 'awake')
             
-            # Set state and score based on class
-            person.drowsiness_state = state
-            if state == 'sleeping':
-                person.drowsiness_score = 0.9
-            elif state == 'drowsy':
-                person.drowsiness_score = 0.6
-            else:  # awake
-                person.drowsiness_score = 0.1
+            # CRITICAL FIX: Be more conservative
+            # - 'ngugat' (slight head drop) could be writing → treat as awake unless confirmed
+            # - 'gucxuongban' (head fully down) → likely sleeping
+            if predicted_state == 'drowsy':
+                # Require more evidence for drowsy state
+                raw_state = 'drowsy'
+                raw_score = 0.5  # Lower initial score
+            elif predicted_state == 'sleeping':
+                raw_state = 'sleeping'
+                raw_score = 0.9
+            else:
+                raw_state = 'awake'
+                raw_score = 0.1
                 
-            # Additional confidence boost from detection confidence
-            if hasattr(person, 'confidence'):
-                person.drowsiness_score = person.drowsiness_score * 0.7 + person.confidence * 0.3
+            # Boost confidence if detection confidence is high
+            if hasattr(person, 'confidence') and person.confidence > 0.8:
+                raw_score = raw_score * 0.8 + person.confidence * 0.2
         
         # MODE 2: Fallback to keypoint-based analysis (for pretrained models)
         else:
-            if len(person.keypoints) < 7:  # Need at least nose and shoulders
-                person.drowsiness_state = "awake"
-                person.drowsiness_score = 0.1
-                return person
-            
-            # Convert keypoints to numpy array format for classify_pose_custom
-            k = np.array([[kpt.x, kpt.y] for kpt in person.keypoints[:7]])
-            
-            # Get image dimensions from bounding box
-            img_h = int(person.bbox[3] - person.bbox[1])
-            img_w = int(person.bbox[2] - person.bbox[0])
-            
-            # Use enhanced classification logic
-            state_text, angle_v, drop_h_ratio = classify_pose_custom(k, img_h, img_w)
-            
-            # Convert Vietnamese state to English and calculate score
-            if state_text == "Gục xuống bàn":
-                person.drowsiness_state = "sleeping"
-                person.drowsiness_score = 0.9
-            elif state_text == "Ngủ gật":
-                person.drowsiness_state = "drowsy"
-                person.drowsiness_score = 0.6
-            else:
-                person.drowsiness_state = "awake"
-                person.drowsiness_score = 0.1
-            
-            # Additional eye closure detection for more accuracy
-            if len(person.keypoints) >= 3:  # Have eyes
-                left_eye = person.keypoints[1]
-                right_eye = person.keypoints[2]
+            if len(person.keypoints) >= 7:
+                # Convert keypoints to numpy array
+                k = np.array([[kpt.x, kpt.y] for kpt in person.keypoints[:7]])
                 
-                if left_eye.visible and right_eye.visible:
-                    eye_confidence = (left_eye.confidence + right_eye.confidence) / 2
-                    if eye_confidence < self.eye_closed_threshold:
-                        person.drowsiness_score = min(person.drowsiness_score + 0.3, 1.0)
-                        if person.drowsiness_state == "awake":
-                            person.drowsiness_state = "drowsy"
+                # Get image dimensions
+                img_h = int(person.bbox[3] - person.bbox[1])
+                img_w = int(person.bbox[2] - person.bbox[0])
+                
+                # Use enhanced classification with MORE CONSERVATIVE thresholds
+                state_text, angle_v, drop_h_ratio = classify_pose_custom(
+                    k, img_h, img_w,
+                    angle_thr=25.0,  # Increased from 15 (more tolerant to head tilt)
+                    drop_h_thr=0.25,  # Increased from 0.15 (need bigger drop)
+                    drop_sw_thr=0.70   # Increased from 0.45 (need much bigger drop)
+                )
+                
+                if state_text == "Gục xuống bàn":
+                    raw_state = "sleeping"
+                    raw_score = 0.9
+                elif state_text == "Ngủ gật":
+                    raw_state = "drowsy"
+                    raw_score = 0.5  # Lower initial score
+                else:
+                    raw_state = "awake"
+                    raw_score = 0.1
         
-        # Update history for stability
-        person_id = person.id
+        # TEMPORAL SMOOTHING: Accumulate history to reduce false positives
+        person_id = person.track_id if person.track_id is not None else person.id
+        
+        if person_id not in self.drowsiness_history:
+            self.drowsiness_history[person_id] = []
+        
+        history = self.drowsiness_history[person_id]
+        history.append(raw_state)
+        
+        # Keep only recent history
+        if len(history) > self.history_length:
+            history.pop(0)
+        
+        # Make final decision based on history (consensus voting)
+        if len(history) >= 5:  # Need at least 5 frames (~1 second)
+            # Count occurrences of each state
+            awake_count = history.count('awake')
+            drowsy_count = history.count('drowsy')
+            sleeping_count = history.count('sleeping')
+            
+            # Decision logic (conservative - prefer awake unless strong evidence)
+            if sleeping_count >= self.sleeping_threshold:
+                # Confirmed sleeping: majority of recent frames show sleeping
+                final_state = 'sleeping'
+                final_score = 0.9
+            elif drowsy_count >= self.drowsy_threshold and sleeping_count < 5:
+                # Confirmed drowsy: many drowsy frames but not sleeping
+                # BUT: if there are many awake frames mixed in, stay awake
+                if awake_count < drowsy_count:
+                    final_state = 'drowsy'
+                    final_score = 0.6
+                else:
+                    final_state = 'awake'
+                    final_score = 0.2
+            else:
+                # Default to awake unless overwhelming evidence
+                final_state = 'awake'
+                final_score = 0.1
+        else:
+            # Not enough history yet - default to awake (conservative)
+            final_state = 'awake'
+            final_score = 0.1
+        
+        # Set final state
+        person.drowsiness_state = final_state
+        person.drowsiness_score = final_score
+        
+        return person
         if person_id not in self.drowsiness_history:
             self.drowsiness_history[person_id] = []
         
