@@ -231,52 +231,103 @@ def classify_pose_custom(k: np.ndarray, img_h: int, img_w: int, angle_thr: float
     return "Bình thường", float(angle_v), float(drop_h_ratio)
 
 class DrowsinessAnalyzer:
-    """Analyzes pose keypoints to determine drowsiness state"""
+    """Analyzes pose detections to determine drowsiness state
     
-    def __init__(self):
+    Supports two modes:
+    1. CLASS-BASED (trained model): Uses model class predictions (binhthuong, ngugat, gucxuongban)
+    2. KEYPOINT-BASED (pretrained model): Analyzes keypoints manually
+    """
+    
+    def __init__(self, use_class_predictions: bool = True):
+        """
+        Args:
+            use_class_predictions: If True, use model class predictions. If False, analyze keypoints manually.
+        """
+        self.use_class_predictions = use_class_predictions
         self.eye_closed_threshold = 0.3
         self.head_tilt_threshold = 30.0  # degrees
         self.drowsiness_history = {}  # person_id -> deque of states
-        self.min_drowsiness_frames = 5  # frames to confirm drowsiness
+        self.min_drowsiness_frames = 3  # frames to confirm drowsiness (faster response)
         
-    def analyze_person(self, person: PersonDetection) -> PersonDetection:
-        """Analyze a person's pose to determine drowsiness state using enhanced logic"""
-        if len(person.keypoints) < 7:  # Need at least nose and shoulders
-            return person
+        # Class name mappings for trained model
+        self.class_to_state = {
+            'binhthuong': 'awake',
+            'ngugat': 'drowsy', 
+            'gucxuongban': 'sleeping',
+            # Fallback for English names
+            'awake': 'awake',
+            'drowsy': 'drowsy',
+            'sleeping': 'sleeping',
+        }
         
-        # Convert keypoints to numpy array format for classify_pose_custom
-        # COCO pose format: nose(0), left_eye(1), right_eye(2), left_ear(3), right_ear(4), left_shoulder(5), right_shoulder(6)
-        k = np.array([[kpt.x, kpt.y] for kpt in person.keypoints[:7]])
+    def analyze_person(self, person: PersonDetection, class_name: str = None) -> PersonDetection:
+        """Analyze a person's pose to determine drowsiness state
         
-        # Get image dimensions from bounding box
-        img_h = int(person.bbox[3] - person.bbox[1])
-        img_w = int(person.bbox[2] - person.bbox[0])
+        Args:
+            person: PersonDetection object
+            class_name: Model-predicted class name (if available from trained model)
         
-        # Use enhanced classification logic
-        state_text, angle_v, drop_h_ratio = classify_pose_custom(k, img_h, img_w)
+        Returns:
+            Updated PersonDetection with drowsiness_state and drowsiness_score
+        """
         
-        # Convert Vietnamese state to English and calculate score
-        if state_text == "Gục xuống bàn":
-            person.drowsiness_state = "sleeping"
-            person.drowsiness_score = 0.9
-        elif state_text == "Ngủ gật":
-            person.drowsiness_state = "drowsy"
-            person.drowsiness_score = 0.6
-        else:
-            person.drowsiness_state = "awake"
-            person.drowsiness_score = 0.1
-        
-        # Additional eye closure detection for more accuracy
-        if len(person.keypoints) >= 3:  # Have eyes
-            left_eye = person.keypoints[1]  # left_eye_idx = 1
-            right_eye = person.keypoints[2]  # right_eye_idx = 2
+        # MODE 1: Use class predictions from trained model (PREFERRED)
+        if self.use_class_predictions and class_name:
+            # Convert Vietnamese class name to English state
+            state = self.class_to_state.get(class_name.lower(), 'awake')
             
-            if left_eye.visible and right_eye.visible:
-                eye_confidence = (left_eye.confidence + right_eye.confidence) / 2
-                if eye_confidence < self.eye_closed_threshold:
-                    person.drowsiness_score = min(person.drowsiness_score + 0.3, 1.0)
-                    if person.drowsiness_state == "awake":
-                        person.drowsiness_state = "drowsy"
+            # Set state and score based on class
+            person.drowsiness_state = state
+            if state == 'sleeping':
+                person.drowsiness_score = 0.9
+            elif state == 'drowsy':
+                person.drowsiness_score = 0.6
+            else:  # awake
+                person.drowsiness_score = 0.1
+                
+            # Additional confidence boost from detection confidence
+            if hasattr(person, 'confidence'):
+                person.drowsiness_score = person.drowsiness_score * 0.7 + person.confidence * 0.3
+        
+        # MODE 2: Fallback to keypoint-based analysis (for pretrained models)
+        else:
+            if len(person.keypoints) < 7:  # Need at least nose and shoulders
+                person.drowsiness_state = "awake"
+                person.drowsiness_score = 0.1
+                return person
+            
+            # Convert keypoints to numpy array format for classify_pose_custom
+            k = np.array([[kpt.x, kpt.y] for kpt in person.keypoints[:7]])
+            
+            # Get image dimensions from bounding box
+            img_h = int(person.bbox[3] - person.bbox[1])
+            img_w = int(person.bbox[2] - person.bbox[0])
+            
+            # Use enhanced classification logic
+            state_text, angle_v, drop_h_ratio = classify_pose_custom(k, img_h, img_w)
+            
+            # Convert Vietnamese state to English and calculate score
+            if state_text == "Gục xuống bàn":
+                person.drowsiness_state = "sleeping"
+                person.drowsiness_score = 0.9
+            elif state_text == "Ngủ gật":
+                person.drowsiness_state = "drowsy"
+                person.drowsiness_score = 0.6
+            else:
+                person.drowsiness_state = "awake"
+                person.drowsiness_score = 0.1
+            
+            # Additional eye closure detection for more accuracy
+            if len(person.keypoints) >= 3:  # Have eyes
+                left_eye = person.keypoints[1]
+                right_eye = person.keypoints[2]
+                
+                if left_eye.visible and right_eye.visible:
+                    eye_confidence = (left_eye.confidence + right_eye.confidence) / 2
+                    if eye_confidence < self.eye_closed_threshold:
+                        person.drowsiness_score = min(person.drowsiness_score + 0.3, 1.0)
+                        if person.drowsiness_state == "awake":
+                            person.drowsiness_state = "drowsy"
         
         # Update history for stability
         person_id = person.id
@@ -313,23 +364,25 @@ class YOLODetector:
             # Check for trained models in order of preference
             import os
             here = os.path.dirname(__file__)
-            root = os.path.abspath(os.path.join(here, '..'))
+            
+            # Priority: Use custom trained models for drowsiness detection
             trained_model_paths = [
-                os.path.join(root, 'yolo-sleepy-allinone-final', 'best.pt'),
-                os.path.join(root, 'yolo-sleepy-allinone-final', 'runs', 'pose', 'train', 'weights', 'best.pt'),
-                os.path.join(root, 'yolo-sleepy-allinone-final', 'weights', 'best.pt'),
-                # Relative fallbacks if cwd is repo root
-                "yolo-sleepy-allinone-final/best.pt",
-                "yolo-sleepy-allinone-final/runs/pose/train/weights/best.pt",
-                "yolo-sleepy-allinone-final/weights/best.pt",
+                # Local trained models in models directory (HIGHEST PRIORITY)
+                os.path.join(here, 'models', 'sleepy_pose_v11n_full_best.pt'),
+                os.path.join(here, 'models', 'sleepy_pose_v11n3_best.pt'),
+                # Backup: check old workspace
+                os.path.join(here, '..', '..', 'DACN_PhatHienNguGat_Old', 'yolo-sleepy-allinone-final', 'runs', 'pose-train', 'sleepy_pose_v11n_full', 'weights', 'best.pt'),
+                os.path.join(here, '..', '..', 'DACN_PhatHienNguGat_Old', 'yolo-sleepy-allinone-final', 'runs', 'pose-train', 'sleepy_pose_v11n3', 'weights', 'best.pt'),
             ]
             
-            model_path = "yolo11n-pose.pt"  # Default fallback
+            model_path = "yolo11n-pose.pt"  # Default fallback if no trained model found
             for path in trained_model_paths:
                 if os.path.exists(path):
                     model_path = path
-                    logging.info(f"Found trained model: {path}")
+                    logging.info(f"✅ Using TRAINED drowsiness detection model: {path}")
                     break
+            else:
+                logging.warning(f"⚠️ No trained model found, using default pretrained model: {model_path}")
         self.model_path = model_path
         self.model = None
         self.drowsiness_analyzer = DrowsinessAnalyzer()
@@ -448,6 +501,15 @@ class YOLODetector:
                         box = boxes.xyxy[i].cpu().numpy()
                         confidence = boxes.conf[i].cpu().numpy()
                         
+                        # Get class name from trained model (if available)
+                        class_name = None
+                        if hasattr(boxes, 'cls') and boxes.cls is not None and i < len(boxes.cls):
+                            class_id = int(boxes.cls[i].cpu().numpy())
+                            if hasattr(self.model, 'names') and class_id in self.model.names:
+                                class_name = self.model.names[class_id]
+                                if self.frame_counter % 30 == 0 and i == 0:  # Log first detection periodically
+                                    logging.info(f"[YOLO] Detected class: {class_name} (id={class_id}, conf={confidence:.2f})")
+                        
                         # Get keypoints
                         if i < len(keypoints.data):
                             kpts = keypoints.data[i].cpu().numpy()
@@ -482,8 +544,8 @@ class YOLODetector:
                                 keypoints=pose_keypoints
                             )
                             
-                            # Analyze drowsiness
-                            person = self.drowsiness_analyzer.analyze_person(person)
+                            # Analyze drowsiness (pass class_name if available from trained model)
+                            person = self.drowsiness_analyzer.analyze_person(person, class_name=class_name)
                             persons.append(person)
                             
                             self.person_counter += 1

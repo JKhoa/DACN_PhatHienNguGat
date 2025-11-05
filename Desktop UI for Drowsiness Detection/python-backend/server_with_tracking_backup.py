@@ -1239,14 +1239,26 @@ if __name__ == '__main__':
     if YOLO_AVAILABLE:
         app.logger.info("Initializing YOLO detector...")
         try:
-            # Resolve model weights path robustly, prefer larger models for better accuracy
+            # Resolve model weights path robustly
             backend_dir = os.path.dirname(__file__)
             root_dir = os.path.dirname(os.path.dirname(backend_dir))
-            # preference order: user's trained best.pt > 11m > 11s > 11n
+            
+            # PRIORITY ORDER (HIGHEST TO LOWEST):
+            # 1. Custom trained models for drowsiness detection (BEST - trained on 1000 epochs)
+            # 2. Backup trained models from old workspace
+            # 3. Generic pose models (fallback if no trained model)
             variants = [
+                # Custom trained models in backend/models directory (HIGHEST PRIORITY)
+                os.path.join(backend_dir, 'models', 'sleepy_pose_v11n_full_best.pt'),
+                os.path.join(backend_dir, 'models', 'sleepy_pose_v11n3_best.pt'),
+                # Backup: old workspace
+                os.path.join(root_dir, '..', 'DACN_PhatHienNguGat_Old', 'yolo-sleepy-allinone-final', 'runs', 'pose-train', 'sleepy_pose_v11n_full', 'weights', 'best.pt'),
+                os.path.join(root_dir, '..', 'DACN_PhatHienNguGat_Old', 'yolo-sleepy-allinone-final', 'runs', 'pose-train', 'sleepy_pose_v11n3', 'weights', 'best.pt'),
+                # Legacy paths (old structure)
                 os.path.join(root_dir, 'yolo-sleepy-allinone-final', 'best.pt'),
                 os.path.join(root_dir, 'yolo-sleepy-allinone-final', 'runs', 'pose', 'train', 'weights', 'best.pt'),
                 os.path.join(root_dir, 'yolo-sleepy-allinone-final', 'weights', 'best.pt'),
+                # Generic pretrained models (LOWEST PRIORITY - fallback only)
                 'yolo11m-pose.pt', 'yolo11s-pose.pt', 'yolo11n-pose.pt'
             ]
             search_dirs = [backend_dir, root_dir, os.path.dirname(backend_dir)]
@@ -1257,13 +1269,17 @@ if __name__ == '__main__':
                 for p in candidate_paths:
                     if os.path.exists(p):
                         model_path = p
-                        app.logger.info(f"Found local model weights: {model_path}")
+                        if 'sleepy_pose' in p or 'best.pt' in p:
+                            app.logger.info(f"✅ Using TRAINED drowsiness detection model: {model_path}")
+                        else:
+                            app.logger.info(f"Found local model weights: {model_path}")
                         break
                 if model_path:
                     break
             if model_path:
                 initialize_detector(model_path)
             else:
+                app.logger.warning("⚠️ No trained model found, using default pretrained model (less accurate for drowsiness)")
                 app.logger.info("No local weights found; using alias 'yolo11n-pose.pt' (Ultralytics may auto-download)")
                 initialize_detector('yolo11n-pose.pt')
             app.logger.info("✅ YOLO detector initialized successfully")
