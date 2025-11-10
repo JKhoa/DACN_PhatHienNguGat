@@ -221,13 +221,22 @@ def classify_pose_custom(k: np.ndarray, img_h: int, img_w: int, angle_thr: float
         neck = (nose[0], nose[1] - img_h * 0.12); shoulder_w = img_w * 0.2
     dx = nose[0] - neck[0]; dy = nose[1] - neck[1]
     angle_v = abs(np.degrees(np.arctan2(abs(dx), abs(dy) + 1e-6)))
-    drop_pix = dy
+    # FIX: In image coordinates, Y increases downward. When head drops, nose.y > neck.y → dy positive
+    # But we need absolute value for ratio comparison (head drop distance regardless of direction)
+    drop_pix = abs(dy)
     drop_h_ratio = float(drop_pix) / max(img_h, 1)
     drop_sw_ratio = float(drop_pix) / max(shoulder_w, 1e-6)
+    
+    # DEBUG: Log detection values
+    logging.info(f"[POSE DEBUG] angle={angle_v:.1f}° (thr={angle_thr}), drop_h={drop_h_ratio:.3f} (thr={drop_h_thr}), drop_sw={drop_sw_ratio:.3f} (thr={drop_sw_thr}), dy={dy:.1f}")
+    
     if drop_h_ratio > 0.22 or drop_sw_ratio > 0.65:
+        logging.info(f"[POSE] → Gục xuống bàn (drop_h={drop_h_ratio:.3f} > 0.22 or drop_sw={drop_sw_ratio:.3f} > 0.65)")
         return "Gục xuống bàn", float(angle_v), float(drop_h_ratio)
     if angle_v > angle_thr or drop_h_ratio > drop_h_thr or drop_sw_ratio > drop_sw_thr:
+        logging.info(f"[POSE] → Ngủ gật (angle={angle_v:.1f} > {angle_thr} OR drop_h={drop_h_ratio:.3f} > {drop_h_thr} OR drop_sw={drop_sw_ratio:.3f} > {drop_sw_thr})")
         return "Ngủ gật", float(angle_v), float(drop_h_ratio)
+    logging.info(f"[POSE] → Bình thường")
     return "Bình thường", float(angle_v), float(drop_h_ratio)
 
 class DrowsinessAnalyzer:
@@ -249,11 +258,11 @@ class DrowsinessAnalyzer:
         # Disable eye tracking - not reliable with classroom cameras
         self.use_eye_tracking = False
         
-        # Temporal smoothing parameters (INCREASED for stability)
+        # Temporal smoothing parameters (BALANCED for responsiveness)
         self.drowsiness_history = {}  # person_id -> list of recent states
-        self.history_length = 15  # Keep 15 frames (~3 seconds at 5 FPS)
-        self.drowsy_threshold = 10  # Need 10/15 frames to confirm drowsy (67%)
-        self.sleeping_threshold = 12  # Need 12/15 frames to confirm sleeping (80%)
+        self.history_length = 6  # Keep 6 frames (~1.2 seconds at 5 FPS) - faster
+        self.drowsy_threshold = 3  # Need 3/6 frames to confirm drowsy (50%) - easier
+        self.sleeping_threshold = 5  # Need 5/6 frames to confirm sleeping (83%)
         
         # Class name mappings for trained model
         self.class_to_state = {
@@ -273,7 +282,7 @@ class DrowsinessAnalyzer:
             'sleeping': 0.9
         }
         
-    def analyze_person(self, person: PersonDetection, class_name: str = None) -> PersonDetection:
+    def analyze_person(self, person: PersonDetection, class_name: Optional[str] = None) -> PersonDetection:
         """Analyze a person's pose to determine drowsiness state with temporal smoothing
         
         Args:
@@ -289,7 +298,12 @@ class DrowsinessAnalyzer:
         raw_score = 0.1
         
         # MODE 1: Use class predictions from trained model (PREFERRED)
-        if self.use_class_predictions and class_name:
+        # CRITICAL: Only use class predictions if class_name is a CUSTOM drowsiness class
+        # Pretrained models return "person" which is NOT useful for drowsiness detection
+        custom_classes = ['binhthuong', 'ngugat', 'gucxuongban', 'awake', 'drowsy', 'sleeping']
+        is_custom_class = class_name and class_name.lower() in custom_classes
+        
+        if self.use_class_predictions and is_custom_class:
             # Map Vietnamese class to state
             predicted_state = self.class_to_state.get(class_name.lower(), 'awake')
             
@@ -321,12 +335,12 @@ class DrowsinessAnalyzer:
                 img_h = int(person.bbox[3] - person.bbox[1])
                 img_w = int(person.bbox[2] - person.bbox[0])
                 
-                # Use enhanced classification with MORE CONSERVATIVE thresholds
+                # Use enhanced classification with SENSITIVE thresholds for testing
                 state_text, angle_v, drop_h_ratio = classify_pose_custom(
                     k, img_h, img_w,
-                    angle_thr=25.0,  # Increased from 15 (more tolerant to head tilt)
-                    drop_h_thr=0.25,  # Increased from 0.15 (need bigger drop)
-                    drop_sw_thr=0.70   # Increased from 0.45 (need much bigger drop)
+                    angle_thr=50.0,  # Very tolerant to head tilt (increased)
+                    drop_h_thr=0.05,  # Very small head drop (super sensitive)
+                    drop_sw_thr=0.15   # Very small shoulder drop (super sensitive)
                 )
                 
                 if state_text == "Gục xuống bàn":
@@ -414,7 +428,7 @@ class DrowsinessAnalyzer:
 class YOLODetector:
     """YOLO-based pose detection for drowsiness monitoring with head-focused tracking"""
     
-    def __init__(self, model_path: str = None):
+    def __init__(self, model_path: Optional[str] = None):
         # Try to load trained model first, then fallback to default
         if model_path is None:
             # Check for trained models in order of preference
@@ -543,20 +557,22 @@ class YOLODetector:
                 persons=[]
             )
         
-        persons = []
-        
-        # Process results
+        persons: List[PersonDetection] = []
+        # Temporarily collect detections and their class names so we can run tracking first
+        pending: List[Tuple[PersonDetection, Optional[str]]] = []
+
+        # Process results: build detections first (without final drowsiness state)
         for result in results:
             if result.keypoints is not None:
                 boxes = result.boxes
                 keypoints = result.keypoints
-                
+
                 if boxes is not None and len(boxes) > 0:
                     for i in range(len(boxes)):
                         # Get bounding box
                         box = boxes.xyxy[i].cpu().numpy()
                         confidence = boxes.conf[i].cpu().numpy()
-                        
+
                         # Get class name from trained model (if available)
                         class_name = None
                         if hasattr(boxes, 'cls') and boxes.cls is not None and i < len(boxes.cls):
@@ -565,15 +581,15 @@ class YOLODetector:
                                 class_name = self.model.names[class_id]
                                 if self.frame_counter % 30 == 0 and i == 0:  # Log first detection periodically
                                     logging.info(f"[YOLO] Detected class: {class_name} (id={class_id}, conf={confidence:.2f})")
-                        
+
                         # Get keypoints
                         if i < len(keypoints.data):
                             kpts = keypoints.data[i].cpu().numpy()
-                            
+
                             # Flatten if 2D (shape: [17, 3] -> [51])
                             if kpts.ndim > 1:
                                 kpts = kpts.flatten()
-                            
+
                             # Convert keypoints to PoseKeypoint objects
                             pose_keypoints = []
                             for j in range(0, len(kpts), 3):
@@ -585,13 +601,13 @@ class YOLODetector:
                                         confidence=conf,
                                         visible=conf > 0.5
                                     ))
-                            
+
                             # Create person detection with body bbox
                             body_bbox = (float(box[0]), float(box[1]), float(box[2]), float(box[3]))
-                            
+
                             # Calculate head bbox from keypoints
                             head_bbox = calculate_head_bbox(pose_keypoints, body_bbox)
-                            
+
                             person = PersonDetection(
                                 id=self.person_counter,
                                 bbox=body_bbox,
@@ -599,16 +615,26 @@ class YOLODetector:
                                 confidence=float(confidence),
                                 keypoints=pose_keypoints
                             )
-                            
-                            # Analyze drowsiness (pass class_name if available from trained model)
-                            person = self.drowsiness_analyzer.analyze_person(person, class_name=class_name)
-                            persons.append(person)
-                            
+
+                            pending.append((person, class_name))
                             self.person_counter += 1
-        
-        # Update tracker to assign persistent IDs
-        persons = self.tracker.update(persons)
-        
+
+        # First, assign persistent IDs via tracker so temporal smoothing uses stable IDs
+        if pending:
+            tracked_persons = self.tracker.update([p for p, _ in pending])
+        else:
+            tracked_persons = []
+
+        # Now analyze drowsiness using stable track_id
+        for idx, person in enumerate(tracked_persons):
+            # pending list preserves ordering; guard against mismatch length
+            class_name = None
+            if idx < len(pending):
+                _, class_name = pending[idx]
+            analyzed = self.drowsiness_analyzer.analyze_person(person, class_name=class_name)
+            analyzed.last_update = time.time()
+            persons.append(analyzed)
+
         # Use track_id as person id if available
         for person in persons:
             if person.track_id is not None:
