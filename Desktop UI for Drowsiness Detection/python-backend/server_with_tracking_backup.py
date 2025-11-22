@@ -15,7 +15,7 @@ from collections import deque
 
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify, Response, make_response
+from flask import Flask, request, jsonify, Response, make_response, send_file
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_cors import CORS
 
@@ -29,6 +29,16 @@ try:
 except ImportError as e:
     logging.warning(f"YOLO detector not available: {e}")
     YOLO_AVAILABLE = False
+
+# Import Drowsiness Logger
+try:
+    from drowsiness_logger import (
+        MultiCameraLogger, get_global_logger, init_logger
+    )
+    LOGGER_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Drowsiness logger not available: {e}")
+    LOGGER_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app)
@@ -224,6 +234,14 @@ class EnhancedCameraWorker(threading.Thread):
 
         app.logger.info(f"[{self.cam_id}] EnhancedCameraWorker initialized with URL: {url}, detection: {self._detection_enabled}")
 
+        # Register camera with drowsiness logger
+        if LOGGER_AVAILABLE:
+            logger = get_global_logger()
+            # Extract camera name from cam_id (format: "id/name")
+            camera_name = cam_id.split('/')[-1] if '/' in cam_id else cam_id
+            logger.register_camera(cam_id, camera_name)
+            app.logger.info(f"[{self.cam_id}] Camera registered with drowsiness logger as '{camera_name}'")
+
         # Auto-enable detection for webcam (device ID)
         if url.isdigit() or url.startswith('0'):
             self._detection_enabled = True and YOLO_AVAILABLE
@@ -373,13 +391,15 @@ class EnhancedCameraWorker(threading.Thread):
                                 fw, fh = self.get_frame_dimensions()
                                 socketio.emit('update', {
                                     'success': True,
+                                    'schema': 'v1',
                                     'camera_id': self.cam_id,
                                     'frame_width': int(fw or 0),
                                     'frame_height': int(fh or 0),
                                     'fps': float(self._current_fps or 0.0),
+                                    'processing_time': float(getattr(detection_result, 'processing_time', 0.0) or 0.0),
                                     'persons': persons_payload,
                                     'timestamp': now_ts,
-                                }, namespace='/ws/camera', room=f'cam:{self.cam_id}')
+                                }, namespace='/ws/camera', to=f'cam:{self.cam_id}')
                         except Exception as _emit_e:
                             app.logger.debug(f"[{self.cam_id}] WS emit skipped: {_emit_e}")
 
@@ -516,12 +536,29 @@ class EnhancedCameraWorker(threading.Thread):
                 if eff_state in ('Ngủ gật', 'Gục xuống bàn'):
                     self._per_id_sleep_start[tid] = now
                     append_log({'camera_id': self.cam_id, 'track_id': tid, 'type': 'sleepy' if eff_state == 'Ngủ gật' else 'head_down', 'state': eff_state, 'ts': now})
+                    
+                    # 🔥 NEW: Log to drowsiness logger
+                    if LOGGER_AVAILABLE:
+                        try:
+                            logger = get_global_logger()
+                            logger.update_student_state(self.cam_id, tid, True)
+                        except Exception as log_err:
+                            app.logger.debug(f"Logger error (start drowsy): {log_err}")
+                            
                 elif eff_state == 'Thức dậy':
                     dur = 0.0
                     if tid in self._per_id_sleep_start:
                         dur = now - self._per_id_sleep_start[tid]
                         del self._per_id_sleep_start[tid]
                     append_log({'camera_id': self.cam_id, 'track_id': tid, 'type': 'wake_up', 'state': eff_state, 'duration': dur, 'ts': now})
+                    
+                    # 🔥 NEW: Log wake up to drowsiness logger
+                    if LOGGER_AVAILABLE:
+                        try:
+                            logger = get_global_logger()
+                            logger.update_student_state(self.cam_id, tid, False)
+                        except Exception as log_err:
+                            app.logger.debug(f"Logger error (wake up): {log_err}")
 
             self._per_id_state[tid] = eff_state
             self._per_id_sleep_count[tid] = sleep_cnt
@@ -862,6 +899,314 @@ def get_detection_results(cam_id):
         }), 500
 
 
+# ==================== Drowsiness Logging API Endpoints ====================
+
+@app.route('/api/logs/cameras', methods=['GET'])
+def get_cameras_list():
+    """Lấy danh sách tất cả camera đã đăng ký"""
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        logger = get_global_logger()
+        cameras = []
+        for camera_id, cam_logger in logger.cameras.items():
+            cameras.append({
+                'camera_id': camera_id,
+                'camera_name': cam_logger.camera_name,
+                'active_drowsy_count': len(cam_logger.active_events)
+            })
+        
+        return jsonify({
+            'success': True,
+            'cameras': cameras,
+            'total': len(cameras)
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting cameras list: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logs/stats/<camera_id>', methods=['GET'])
+def get_camera_stats(camera_id: str):
+    """Lấy thống kê cho một camera
+    
+    Query params:
+        period: 'today', 'week', 'month', hoặc 'YYYY-MM-DD_YYYY-MM-DD'
+    """
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        logger = get_global_logger()
+        period = request.args.get('period', 'today')
+        
+        stats = logger.get_camera_stats(camera_id, period)
+        
+        if 'error' in stats:
+            return jsonify({'success': False, 'error': stats['error']}), 404
+        
+        return jsonify({
+            'success': True,
+            'stats': stats
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting camera stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logs/stats', methods=['GET'])
+def get_all_stats():
+    """Lấy thống kê tất cả camera
+    
+    Query params:
+        period: 'today', 'week', 'month', hoặc 'YYYY-MM-DD_YYYY-MM-DD'
+    """
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        logger = get_global_logger()
+        period = request.args.get('period', 'today')
+        
+        stats = logger.get_all_cameras_stats(period)
+        
+        return jsonify({
+            'success': True,
+            'stats': stats,
+            'period': period
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting all stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logs/summary', methods=['GET'])
+def get_summary_stats():
+    """Lấy thống kê tổng hợp tất cả camera
+    
+    Query params:
+        period: 'today', 'week', 'month', hoặc 'YYYY-MM-DD_YYYY-MM-DD'
+    """
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        logger = get_global_logger()
+        period = request.args.get('period', 'today')
+        
+        summary = logger.get_summary_stats(period)
+        
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting summary stats: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logs/events/<camera_id>', methods=['GET'])
+def get_camera_events(camera_id: str):
+    """Lấy log chi tiết các sự kiện ngủ gật của camera
+    
+    Query params:
+        period: 'today', 'week', 'month', hoặc 'YYYY-MM-DD_YYYY-MM-DD'
+    """
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        logger = get_global_logger()
+        period = request.args.get('period', 'today')
+        
+        events = logger.get_camera_events(camera_id, period)
+        
+        return jsonify({
+            'success': True,
+            'camera_id': camera_id,
+            'period': period,
+            'events': events,
+            'total_events': len(events)
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting camera events: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logs/active', methods=['GET'])
+def get_active_drowsy():
+    """Lấy danh sách học sinh đang ngủ gật (tất cả camera)"""
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        logger = get_global_logger()
+        active = logger.get_active_drowsy_all_cameras()
+        
+        # Count total
+        total_active = sum(len(students) for students in active.values())
+        
+        return jsonify({
+            'success': True,
+            'active_drowsy': active,
+            'total_active': total_active,
+            'cameras_with_drowsy': len(active)
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting active drowsy students: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logs/save', methods=['POST'])
+def save_logs():
+    """Lưu logs ra file JSON"""
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        logger = get_global_logger()
+        data = request.get_json(silent=True) or {}
+        filepath = data.get('filepath')
+        
+        logger.save_to_file(filepath)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Logs saved successfully'
+        })
+    except Exception as e:
+        app.logger.error(f"Error saving logs: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logs/export/pdf', methods=['POST'])
+def export_pdf_report():
+    """Xuất báo cáo PDF"""
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        from report_generator import get_report_generator
+        
+        logger = get_global_logger()
+        data = request.get_json() or {}
+        
+        period = data.get('period', 'today')
+        camera_ids = data.get('camera_ids', None)
+        
+        # Get summary statistics
+        summary = logger.get_summary_stats(period)
+        
+        # Get camera statistics
+        if camera_ids:
+            camera_stats = [logger.get_camera_stats(cam_id, period) for cam_id in camera_ids]
+        else:
+            all_stats = logger.get_all_cameras_stats(period)
+            camera_stats = all_stats.get('camera_stats', [])
+        
+        # Get detailed events
+        all_events = []
+        for cam_id in logger.cameras.keys():
+            if camera_ids is None or cam_id in camera_ids:
+                cam_logger = logger.cameras[cam_id]
+                start_time, end_time = logger._parse_period(period)
+                events = cam_logger.get_detailed_events(start_time, end_time)
+                # Add camera info to each event
+                for event in events:
+                    event['camera_id'] = cam_id
+                    event['camera_name'] = cam_logger.camera_name
+                all_events.extend(events)
+        
+        # Sort by start time
+        all_events.sort(key=lambda x: x['start_time'], reverse=True)
+        
+        # Generate PDF
+        report_gen = get_report_generator()
+        pdf_path = report_gen.generate_pdf_report(
+            period=period,
+            camera_stats=camera_stats,
+            summary=summary,
+            events=all_events,
+            camera_ids=camera_ids
+        )
+        
+        # Return file
+        return send_file(
+            pdf_path,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=os.path.basename(pdf_path)
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Error generating PDF report: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/logs/export/excel', methods=['POST'])
+def export_excel_report():
+    """Xuất báo cáo Excel"""
+    try:
+        if not LOGGER_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Logger not available'}), 503
+        
+        from report_generator import get_report_generator
+        
+        logger = get_global_logger()
+        data = request.get_json() or {}
+        
+        period = data.get('period', 'today')
+        camera_ids = data.get('camera_ids', None)
+        
+        # Get summary statistics
+        summary = logger.get_summary_stats(period)
+        
+        # Get camera statistics
+        if camera_ids:
+            camera_stats = [logger.get_camera_stats(cam_id, period) for cam_id in camera_ids]
+        else:
+            all_stats = logger.get_all_cameras_stats(period)
+            camera_stats = all_stats.get('camera_stats', [])
+        
+        # Get detailed events
+        all_events = []
+        for cam_id in logger.cameras.keys():
+            if camera_ids is None or cam_id in camera_ids:
+                cam_logger = logger.cameras[cam_id]
+                start_time, end_time = logger._parse_period(period)
+                events = cam_logger.get_detailed_events(start_time, end_time)
+                # Add camera info
+                for event in events:
+                    event['camera_id'] = cam_id
+                    event['camera_name'] = cam_logger.camera_name
+                all_events.extend(events)
+        
+        # Sort by start time
+        all_events.sort(key=lambda x: x['start_time'], reverse=True)
+        
+        # Generate Excel
+        report_gen = get_report_generator()
+        excel_path = report_gen.generate_excel_report(
+            period=period,
+            camera_stats=camera_stats,
+            summary=summary,
+            events=all_events
+        )
+        
+        # Return file
+        return send_file(
+            excel_path,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=os.path.basename(excel_path)
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Error generating Excel report: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/detect/frame', methods=['POST', 'OPTIONS'])
 def detect_frame_endpoint():
     """Detect persons and drowsiness from a frame sent from frontend (for webcam)"""
@@ -1059,9 +1404,17 @@ def ws_disconnect():
     app.logger.info('🔌 [WS /ws/detect] Client DISCONNECTED')
 
 
+# 🔥 WebSocket state tracking (per track_id)
+_ws_per_id_state = {}  # track_id -> "awake" | "drowsy" | "sleeping"
+_ws_per_id_sleep_start = {}  # track_id -> timestamp
+_ws_sleep_frames_required = 8  # ~1.6s at 5fps (same as camera worker)
+_ws_awake_frames_required = 5  # ~1s at 5fps
+_ws_per_id_sleep_count = {}  # track_id -> int
+_ws_per_id_awake_count = {}  # track_id -> int
+
 @socketio.on('frame', namespace='/ws/detect')
 def ws_frame(data):
-    """Receive base64 frame, run detection, emit result immediately."""
+    """Receive base64 frame, run detection, emit result immediately with logging support."""
     try:
         app.logger.info(f"📥 [WS /ws/detect] Received 'frame' event from client")
         
@@ -1121,6 +1474,102 @@ def ws_frame(data):
             worker = manager.get_worker(cam_id)
             if worker:
                 worker.update_detection_result(det)
+        # 🔥 Track state changes and log drowsiness events
+        now = time.time()
+        for p in det.persons:
+            tid = int(getattr(p, 'track_id', getattr(p, 'id', 0)) or 0)
+            state_now = str(getattr(p, 'drowsiness_state', 'awake') or 'awake')
+            
+            # Initialize tracking for new person
+            if tid not in _ws_per_id_state:
+                _ws_per_id_state[tid] = 'awake'
+                _ws_per_id_sleep_count[tid] = 0
+                _ws_per_id_awake_count[tid] = 0
+            
+            prev_state = _ws_per_id_state[tid]
+            
+            # Update counters
+            if state_now in ('drowsy', 'sleeping'):
+                _ws_per_id_sleep_count[tid] = _ws_per_id_sleep_count.get(tid, 0) + 1
+                _ws_per_id_awake_count[tid] = 0
+            else:  # awake
+                _ws_per_id_awake_count[tid] = _ws_per_id_awake_count.get(tid, 0) + 1
+                _ws_per_id_sleep_count[tid] = 0
+            
+            sleep_cnt = _ws_per_id_sleep_count[tid]
+            awake_cnt = _ws_per_id_awake_count[tid]
+            
+            # Determine effective state with temporal smoothing
+            eff_state = prev_state
+            if prev_state in ('drowsy', 'sleeping'):
+                # Currently drowsy/sleeping → check if waking up
+                if state_now == 'awake' and awake_cnt >= _ws_awake_frames_required:
+                    eff_state = 'wake_up'
+            elif prev_state == 'wake_up':
+                # Just woke up → transition to fully awake
+                if awake_cnt >= _ws_awake_frames_required:
+                    eff_state = 'awake'
+            else:
+                # Currently awake → check if falling asleep
+                if state_now in ('drowsy', 'sleeping') and sleep_cnt >= _ws_sleep_frames_required:
+                    eff_state = state_now
+            
+            # 🔥 LOG STATE TRANSITIONS
+            if eff_state != prev_state:
+                if eff_state in ('drowsy', 'sleeping'):
+                    # Started drowsiness
+                    _ws_per_id_sleep_start[tid] = now
+                    append_log({
+                        'camera_id': cam_id,
+                        'track_id': tid,
+                        'type': 'sleepy' if eff_state == 'drowsy' else 'head_down',
+                        'state': 'Ngủ gật' if eff_state == 'drowsy' else 'Gục xuống bàn',
+                        'ts': now
+                    })
+                    
+                    # 🔥 Log to drowsiness logger
+                    if LOGGER_AVAILABLE:
+                        try:
+                            logger = get_global_logger()
+                            # Register camera if not already (webcam detection)
+                            if not hasattr(logger, '_registered_webcam'):
+                                logger.register_camera(cam_id, "WebSocket Camera")
+                                logger._registered_webcam = True
+                                app.logger.info(f"[WS] Registered webcam '{cam_id}' with drowsiness logger")
+                            
+                            logger.update_student_state(cam_id, tid, True)
+                            app.logger.info(f"[WS] 🔴 Học sinh #{tid} BẮT ĐẦU {eff_state} (camera: {cam_id})")
+                        except Exception as log_err:
+                            app.logger.debug(f"[WS] Logger error (start drowsy): {log_err}")
+                
+                elif eff_state == 'wake_up':
+                    # Waking up
+                    dur = 0.0
+                    if tid in _ws_per_id_sleep_start:
+                        dur = now - _ws_per_id_sleep_start[tid]
+                        del _ws_per_id_sleep_start[tid]
+                    
+                    append_log({
+                        'camera_id': cam_id,
+                        'track_id': tid,
+                        'type': 'wake_up',
+                        'state': 'Thức dậy',
+                        'duration': dur,
+                        'ts': now
+                    })
+                    
+                    # 🔥 Log wake up to drowsiness logger
+                    if LOGGER_AVAILABLE:
+                        try:
+                            logger = get_global_logger()
+                            logger.update_student_state(cam_id, tid, False)
+                            app.logger.info(f"[WS] 🟢 Học sinh #{tid} THỨC DẬY sau {dur:.1f}s (camera: {cam_id})")
+                        except Exception as log_err:
+                            app.logger.debug(f"[WS] Logger error (wake up): {log_err}")
+            
+            # Update state
+            _ws_per_id_state[tid] = eff_state
+        
         # serialize persons
         persons = []
         for p in det.persons:
@@ -1146,9 +1595,12 @@ def ws_frame(data):
             pass
         emit('result', {
             'success': True,
+            'camera_id': cam_id,
+            'schema': 'v1',
             'frame_width': w,
             'frame_height': h,
             'fps': float(getattr(det, 'fps', 0.0) or 0.0),
+            'processing_time': float(getattr(det, 'processing_time', 0.0) or 0.0),
             'persons': persons,
             'timestamp': float(getattr(det, 'timestamp', time.time()))
         })
@@ -1208,13 +1660,15 @@ def ws_cam_subscribe(data):
                     })
             socketio.emit('update', {
                 'success': True,
+                'schema': 'v1',
                 'camera_id': cam_id,
                 'frame_width': int(frame_width or 0),
                 'frame_height': int(frame_height or 0),
                 'fps': float(fps or 0.0),
+                'processing_time': float(getattr(result, 'processing_time', 0.0) or 0.0),
                 'persons': persons_payload,
                 'timestamp': time.time(),
-            }, namespace='/ws/camera', room=f'cam:{cam_id}')
+            }, namespace='/ws/camera', to=f'cam:{cam_id}')
         except Exception as _snap_e:
             app.logger.debug(f"WS snapshot emit failed for cam:{cam_id}: {_snap_e}")
     except Exception as e:
@@ -1235,6 +1689,16 @@ def ws_cam_unsubscribe(data):
         emit('error', {'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
+    # Initialize Drowsiness Logger
+    if LOGGER_AVAILABLE:
+        app.logger.info("Initializing Drowsiness Logger...")
+        try:
+            log_dir = os.path.join(os.path.dirname(__file__), 'drowsiness_logs')
+            init_logger(log_dir)
+            app.logger.info(f"✅ Drowsiness Logger initialized successfully (log_dir: {log_dir})")
+        except Exception as e:
+            app.logger.error(f"❌ Failed to initialize Drowsiness Logger: {e}")
+    
     # Initialize YOLO detector
     if YOLO_AVAILABLE:
         app.logger.info("Initializing YOLO detector...")

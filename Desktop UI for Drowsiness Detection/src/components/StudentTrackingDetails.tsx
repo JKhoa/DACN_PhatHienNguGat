@@ -66,7 +66,7 @@ export const StudentTrackingDetails: React.FC<StudentTrackingDetailsProps> = ({
       case 'sleepy':
         return 'Buồn ngủ';
       case 'head_down':
-        return 'Gục xuống';
+        return 'Ngủ gật';
     }
   };
 

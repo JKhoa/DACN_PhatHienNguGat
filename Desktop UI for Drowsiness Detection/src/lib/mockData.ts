@@ -63,22 +63,24 @@ export const generateMockLog = (
   const type = types[Math.floor(Math.random() * types.length)];
   
   const getPositionName = (studentId: string) => {
-    const num = parseInt(studentId.split('-')[1]);
-    const row = Math.floor((num - 1) / 8) + 1;
-    const col = ((num - 1) % 8) + 1;
-    return `Hàng ${row}, Vị trí ${col}`;
+    // Extract numeric ID from student ID format (e.g., 'student-5' -> '5')
+    const num = parseInt(studentId.split('-')[1]) || parseInt(studentId) || 1;
+    return `ID#${num}`;
   };
   
   const messages = {
     sleepy: student 
       ? `Học sinh ${getPositionName(student.id)} có dấu hiệu buồn ngủ`
       : 'Phát hiện dấu hiệu buồn ngủ',
+    sleeping: student 
+      ? `Học sinh ${getPositionName(student.id)} đang ngủ gật`
+      : 'Phát hiện ngủ gật',
     wake_up: student
       ? `Học sinh ${getPositionName(student.id)} tỉnh táo trở lại`
       : 'Học sinh tỉnh táo trở lại',
     head_down: student
-      ? `Học sinh ${getPositionName(student.id)} gục xuống bàn`
-      : 'Phát hiện gục xuống bàn',
+      ? `Học sinh ${getPositionName(student.id)} ngủ gật`
+      : 'Phát hiện ngủ gật',
     connection: 'Kết nối camera thành công',
     detection_start: `Bắt đầu giám sát ${totalStudents || 0} học sinh`,
     detection_end: 'Dừng giám sát',

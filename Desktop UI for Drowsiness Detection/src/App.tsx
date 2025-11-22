@@ -8,11 +8,14 @@ import { CameraGrid } from './components/CameraGrid';
 import { LogPanel } from './components/LogPanel';
 import { CameraDialog } from './components/CameraDialog';
 import { SettingsDialog } from './components/SettingsDialog';
+import { DashboardPanel } from './components/DashboardPanel';
+import { ChartsPanel } from './components/ChartsPanel';
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from './components/ui/resizable';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
 import { initAutoFix } from './utils/autoFixErrors';
@@ -35,6 +38,7 @@ export default function App() {
   const [cameraDialogOpen, setCameraDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [editingCamera, setEditingCamera] = useState<Camera>();
+  const [activeTab, setActiveTab] = useState('cameras');
 
   // System stats
   const [stats, setStats] = useState<SystemStats>({
@@ -166,6 +170,58 @@ export default function App() {
     return () => clearInterval(interval);
   }, [cameras, loggingEnabled]);
 
+  // Fetch real drowsy events from backend
+  useEffect(() => {
+    if (!loggingEnabled) return;
+
+    const fetchDrowsyEvents = async () => {
+      try {
+        // Fetch active drowsy students
+        const activeRes = await fetch('http://127.0.0.1:5000/api/logs/active');
+        if (activeRes.ok) {
+          const data = await activeRes.json();
+          if (data.success && data.active_students) {
+            console.log('[App] Active drowsy students:', data.active_students);
+            
+            // Create logs for currently active drowsy students
+            data.active_students.forEach((student: any) => {
+              const existingLog = logs.find(log => 
+                log.cameraId === student.camera_id && 
+                log.studentPosition === `#${student.student_id}` &&
+                log.type === 'sleepy'
+              );
+              
+              if (!existingLog) {
+                const camera = cameras.find(c => c.id === student.camera_id);
+                const newLog: LogEvent = {
+                  id: `drowsy-${student.camera_id}-${student.student_id}-${Date.now()}`,
+                  timestamp: new Date(student.start_time),
+                  type: 'sleepy',
+                  message: `Học sinh #${student.student_id} đang ngủ gật (${student.duration_display})`,
+                  cameraId: student.camera_id,
+                  cameraName: camera?.name || student.camera_name,
+                  studentPosition: `#${student.student_id}`,
+                };
+                
+                setLogs((prev: LogEvent[]) => [newLog, ...prev].slice(0, 100));
+                
+                toast.warning(`${newLog.cameraName}: Phát hiện buồn ngủ!`, {
+                  description: newLog.message,
+                });
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[App] Error fetching drowsy events:', error);
+      }
+    };
+
+    fetchDrowsyEvents();
+    const interval = setInterval(fetchDrowsyEvents, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
+  }, [cameras, loggingEnabled, logs]);
+
   // Track cameras being auto-fixed to avoid repeated attempts
   const autoFixInProgress = useRef<Set<string>>(new Set());
   const lastAutoFixAttempt = useRef<Record<string, number>>({});
@@ -188,6 +244,7 @@ export default function App() {
   }, [cameras]);
 
   const handleStartAll = async () => {
+    console.log('[App] handleStartAll - current cameras:', cameras.map(c => ({ id: c.id, type: c.type, isRunning: c.isRunning })));
     // Start IP cameras in backend; webcams are handled in browser
     try {
       for (const cam of cameras) {
@@ -199,6 +256,8 @@ export default function App() {
               body: JSON.stringify({ enable_detection: true })
             });
           } catch {}
+        } else {
+          console.log(`[App] Webcam ${cam.id} will be started by CameraCard (getUserMedia)`);
         }
       }
     } catch {}
@@ -660,60 +719,84 @@ export default function App() {
               loggingEnabled={loggingEnabled}
             />
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-          <CameraSidebar
-            cameras={cameras}
-            selectedCameraId={selectedCameraId}
-            onSelectCamera={setSelectedCameraId}
-            onAddCamera={handleAddCamera}
-            onDeleteCamera={handleDeleteCamera}
-            onConfigureCamera={handleConfigureCamera}
-          />
-        </ResizablePanel>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="w-full grid grid-cols-3 rounded-none border-b">
+          <TabsTrigger value="cameras" className="text-sm">
+            � Camera
+          </TabsTrigger>
+          <TabsTrigger value="dashboard" className="text-sm">
+            � Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="charts" className="text-sm">
+            � Biểu đồ
+          </TabsTrigger>
+        </TabsList>
 
-        <ResizableHandle />
+        <TabsContent value="cameras" className="flex-1 m-0 p-0 data-[state=inactive]:hidden">
+          <ResizablePanelGroup direction="horizontal" className="flex-1">
+            <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+              <CameraSidebar
+                cameras={cameras}
+                selectedCameraId={selectedCameraId}
+                onSelectCamera={setSelectedCameraId}
+                onAddCamera={handleAddCamera}
+                onDeleteCamera={handleDeleteCamera}
+                onConfigureCamera={handleConfigureCamera}
+              />
+            </ResizablePanel>
 
-        <ResizablePanel defaultSize={55} minSize={30}>
-          <CameraGrid
-            cameras={cameras}
-            gridSize={gridSize}
-            onGridSizeChange={setGridSize}
-            onToggleCamera={handleToggleCamera}
-            onUpdateStudents={(cameraId: string, students: any[], fps: number) => {
-              setCameras((prev: Camera[]) => prev.map((c: Camera) => 
-                c.id === cameraId 
-                  ? { 
-                      ...c, 
-                      students,
-                      sleepyStudents: students.filter((s: any) => s.state === 'sleepy' || s.state === 'head_down').length,
-                      totalStudents: students.length,
-                      fps,
-                    }
-                  : c
-              ));
-            }}
-            onPopOut={handlePopOut}
-            onConfigure={handleConfigureCamera}
-            onToggleOverlay={handleToggleOverlay}
-            onToggleLogging={handleToggleLogging}
-            onCapturePhoto={handleCapturePhoto}
-            onRecordVideo={handleRecordVideo}
-            showOverlay={overlayEnabled}
-            showPerformance={performanceEnabled}
-          />
-        </ResizablePanel>
+            <ResizableHandle />
 
-        <ResizableHandle />
+            <ResizablePanel defaultSize={55} minSize={30}>
+              <CameraGrid
+                cameras={cameras}
+                gridSize={gridSize}
+                onGridSizeChange={setGridSize}
+                onToggleCamera={handleToggleCamera}
+                onUpdateStudents={(cameraId: string, students: any[], fps: number) => {
+                  setCameras((prev: Camera[]) => prev.map((c: Camera) => 
+                    c.id === cameraId 
+                      ? { 
+                          ...c, 
+                          students,
+                          sleepyStudents: students.filter((s: any) => s.state === 'sleepy' || s.state === 'head_down').length,
+                          totalStudents: students.length,
+                          fps,
+                        }
+                      : c
+                  ));
+                }}
+                onPopOut={handlePopOut}
+                onConfigure={handleConfigureCamera}
+                onToggleOverlay={handleToggleOverlay}
+                onToggleLogging={handleToggleLogging}
+                onCapturePhoto={handleCapturePhoto}
+                onRecordVideo={handleRecordVideo}
+                showOverlay={overlayEnabled}
+                showPerformance={performanceEnabled}
+              />
+            </ResizablePanel>
 
-        <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
-          <LogPanel
-            logs={logs}
-            cameras={cameras}
-            onExport={handleExportLogs}
-          />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+            <ResizableHandle />
+
+            <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
+              <LogPanel
+                logs={logs}
+                cameras={cameras}
+                onExport={handleExportLogs}
+              />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </TabsContent>
+
+        <TabsContent value="dashboard" className="flex-1 m-0 p-0 data-[state=inactive]:hidden">
+          <DashboardPanel />
+        </TabsContent>
+
+        <TabsContent value="charts" className="flex-1 m-0 p-0 data-[state=inactive]:hidden">
+          <ChartsPanel />
+        </TabsContent>
+      </Tabs>
 
       <StatusBar stats={stats} />
 

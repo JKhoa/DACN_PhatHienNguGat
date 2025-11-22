@@ -221,22 +221,32 @@ def classify_pose_custom(k: np.ndarray, img_h: int, img_w: int, angle_thr: float
         neck = (nose[0], nose[1] - img_h * 0.12); shoulder_w = img_w * 0.2
     dx = nose[0] - neck[0]; dy = nose[1] - neck[1]
     angle_v = abs(np.degrees(np.arctan2(abs(dx), abs(dy) + 1e-6)))
-    # FIX: In image coordinates, Y increases downward. When head drops, nose.y > neck.y → dy positive
-    # But we need absolute value for ratio comparison (head drop distance regardless of direction)
-    drop_pix = abs(dy)
-    drop_h_ratio = float(drop_pix) / max(img_h, 1)
-    drop_sw_ratio = float(drop_pix) / max(shoulder_w, 1e-6)
     
-    # DEBUG: Log detection values
-    logging.info(f"[POSE DEBUG] angle={angle_v:.1f}° (thr={angle_thr}), drop_h={drop_h_ratio:.3f} (thr={drop_h_thr}), drop_sw={drop_sw_ratio:.3f} (thr={drop_sw_thr}), dy={dy:.1f}")
+    # CRITICAL FIX: In image coordinates, Y increases downward
+    # When head drops: nose.y > neck.y → dy > 0 (POSITIVE = drowsy/sleeping)
+    # When head up: nose.y < neck.y → dy < 0 (NEGATIVE = awake)
+    # We MUST check dy > 0 before calculating ratios!
     
-    if drop_h_ratio > 0.22 or drop_sw_ratio > 0.65:
-        logging.info(f"[POSE] → Gục xuống bàn (drop_h={drop_h_ratio:.3f} > 0.22 or drop_sw={drop_sw_ratio:.3f} > 0.65)")
-        return "Gục xuống bàn", float(angle_v), float(drop_h_ratio)
-    if angle_v > angle_thr or drop_h_ratio > drop_h_thr or drop_sw_ratio > drop_sw_thr:
-        logging.info(f"[POSE] → Ngủ gật (angle={angle_v:.1f} > {angle_thr} OR drop_h={drop_h_ratio:.3f} > {drop_h_thr} OR drop_sw={drop_sw_ratio:.3f} > {drop_sw_thr})")
-        return "Ngủ gật", float(angle_v), float(drop_h_ratio)
-    logging.info(f"[POSE] → Bình thường")
+    if dy > 0:
+        # Head is BELOW neck (drowsy/sleeping position)
+        drop_pix = float(dy)  # Use positive dy as drop distance
+        drop_h_ratio = drop_pix / max(img_h, 1)
+        drop_sw_ratio = drop_pix / max(shoulder_w, 1e-6)
+        
+        # Only log when state changes (reduce console spam)
+        # Full debug available by setting logging level to DEBUG
+        
+        if drop_h_ratio > 0.22 or drop_sw_ratio > 0.65:
+            logging.debug(f"[POSE] → Gục xuống bàn (drop_h={drop_h_ratio:.3f}, drop_sw={drop_sw_ratio:.3f})")
+            return "Gục xuống bàn", float(angle_v), float(drop_h_ratio)
+        if angle_v > angle_thr or drop_h_ratio > drop_h_thr or drop_sw_ratio > drop_sw_thr:
+            logging.debug(f"[POSE] → Ngủ gật (angle={angle_v:.1f}°, drop_h={drop_h_ratio:.3f}, drop_sw={drop_sw_ratio:.3f})")
+            return "Ngủ gật", float(angle_v), float(drop_h_ratio)
+    else:
+        # Head is ABOVE or at neck level (awake position)
+        drop_h_ratio = 0.0  # No head drop when awake
+    
+    logging.debug(f"[POSE] → Bình thường")
     return "Bình thường", float(angle_v), float(drop_h_ratio)
 
 class DrowsinessAnalyzer:
@@ -246,7 +256,7 @@ class DrowsinessAnalyzer:
     1. CLASS-BASED (trained model): Uses model class predictions (binhthuong, ngugat, gucxuongban)
     2. KEYPOINT-BASED (pretrained model): Analyzes keypoints manually
     
-    Enhanced with temporal smoothing to reduce false positives
+    Enhanced with TIME-BASED temporal smoothing (3-5s continuous head drop)
     """
     
     def __init__(self, use_class_predictions: bool = True):
@@ -258,11 +268,20 @@ class DrowsinessAnalyzer:
         # Disable eye tracking - not reliable with classroom cameras
         self.use_eye_tracking = False
         
-        # Temporal smoothing parameters (BALANCED for responsiveness)
-        self.drowsiness_history = {}  # person_id -> list of recent states
-        self.history_length = 6  # Keep 6 frames (~1.2 seconds at 5 FPS) - faster
-        self.drowsy_threshold = 3  # Need 3/6 frames to confirm drowsy (50%) - easier
-        self.sleeping_threshold = 5  # Need 5/6 frames to confirm sleeping (83%)
+        # TIME-BASED drowsiness tracking (person_id -> tracking info)
+        self.drowsiness_tracking = {}  # person_id -> {
+                                        #   'state_history': [(timestamp, state), ...],
+                                        #   'current_state': 'awake'|'drowsy'|'sleeping',
+                                        #   'drowsy_since': timestamp or None,
+                                        #   'sleeping_since': timestamp or None,
+                                        #   'last_logged': timestamp or None
+                                        # }
+        
+        # Time thresholds (seconds)
+        self.drowsy_time_threshold = 4.0    # Need 4 seconds of continuous head drop for drowsy
+        self.sleeping_time_threshold = 3.0  # Need 3 seconds of continuous sleeping for sleeping
+        self.history_window = 1.0           # Keep last 1 second of history for smoothing
+        self.log_cooldown = 10.0            # Don't spam logs - wait 10s between logs for same person
         
         # Class name mappings for trained model
         self.class_to_state = {
@@ -335,12 +354,12 @@ class DrowsinessAnalyzer:
                 img_h = int(person.bbox[3] - person.bbox[1])
                 img_w = int(person.bbox[2] - person.bbox[0])
                 
-                # Use enhanced classification with SENSITIVE thresholds for testing
+                # Use enhanced classification with BALANCED thresholds (not too sensitive)
                 state_text, angle_v, drop_h_ratio = classify_pose_custom(
                     k, img_h, img_w,
-                    angle_thr=50.0,  # Very tolerant to head tilt (increased)
-                    drop_h_thr=0.05,  # Very small head drop (super sensitive)
-                    drop_sw_thr=0.15   # Very small shoulder drop (super sensitive)
+                    angle_thr=25.0,  # Moderate head tilt threshold (less false positives)
+                    drop_h_thr=0.12,  # Require 12% head drop (avoid false detection when writing)
+                    drop_sw_thr=0.40   # Require 40% shoulder drop (clear drowsiness signal)
                 )
                 
                 if state_text == "Gục xuống bàn":
@@ -353,76 +372,125 @@ class DrowsinessAnalyzer:
                     raw_state = "awake"
                     raw_score = 0.1
         
-        # TEMPORAL SMOOTHING: Accumulate history to reduce false positives
+        # TIME-BASED TRACKING: Track continuous head drop duration
         person_id = person.track_id if person.track_id is not None else person.id
+        current_time = time.time()
         
-        if person_id not in self.drowsiness_history:
-            self.drowsiness_history[person_id] = []
+        # Initialize tracking for new person
+        if person_id not in self.drowsiness_tracking:
+            self.drowsiness_tracking[person_id] = {
+                'state_history': [],
+                'current_state': 'awake',
+                'drowsy_since': None,
+                'sleeping_since': None,
+                'last_logged': None
+            }
         
-        history = self.drowsiness_history[person_id]
-        history.append(raw_state)
+        tracking = self.drowsiness_tracking[person_id]
         
-        # Keep only recent history
-        if len(history) > self.history_length:
-            history.pop(0)
+        # Add current state to history
+        tracking['state_history'].append((current_time, raw_state))
         
-        # Make final decision based on history (consensus voting)
-        if len(history) >= 5:  # Need at least 5 frames (~1 second)
-            # Count occurrences of each state
-            awake_count = history.count('awake')
-            drowsy_count = history.count('drowsy')
-            sleeping_count = history.count('sleeping')
+        # Remove old history (keep only last 1 second)
+        tracking['state_history'] = [
+            (t, s) for t, s in tracking['state_history'] 
+            if current_time - t <= self.history_window
+        ]
+        
+        # Count states in recent history for smoothing
+        if len(tracking['state_history']) >= 3:  # Need at least 3 samples
+            recent_states = [s for _, s in tracking['state_history']]
+            awake_count = recent_states.count('awake')
+            drowsy_count = recent_states.count('drowsy')
+            sleeping_count = recent_states.count('sleeping')
             
-            # Decision logic (conservative - prefer awake unless strong evidence)
-            if sleeping_count >= self.sleeping_threshold:
-                # Confirmed sleeping: majority of recent frames show sleeping
+            # Determine dominant state (with smoothing)
+            if sleeping_count > len(recent_states) * 0.6:  # 60% sleeping
+                dominant_state = 'sleeping'
+            elif drowsy_count > len(recent_states) * 0.5:  # 50% drowsy
+                dominant_state = 'drowsy'
+            elif awake_count > len(recent_states) * 0.4:  # 40% awake
+                dominant_state = 'awake'
+            else:
+                dominant_state = raw_state  # Use raw if no clear dominant
+        else:
+            dominant_state = raw_state
+        
+        # Update continuous state tracking
+        if dominant_state == 'sleeping':
+            # Start/continue sleeping timer
+            if tracking['sleeping_since'] is None:
+                tracking['sleeping_since'] = current_time
+            tracking['drowsy_since'] = None  # Reset drowsy
+            
+        elif dominant_state == 'drowsy':
+            # Start/continue drowsy timer
+            if tracking['drowsy_since'] is None:
+                tracking['drowsy_since'] = current_time
+            tracking['sleeping_since'] = None  # Reset sleeping
+            
+        else:  # awake
+            # Reset all timers
+            tracking['drowsy_since'] = None
+            tracking['sleeping_since'] = None
+        
+        # Make final decision based on continuous duration
+        final_state = 'awake'
+        final_score = 0.1
+        
+        # Check sleeping state (3s continuous)
+        if tracking['sleeping_since'] is not None:
+            sleeping_duration = current_time - tracking['sleeping_since']
+            if sleeping_duration >= self.sleeping_time_threshold:
                 final_state = 'sleeping'
                 final_score = 0.9
-            elif drowsy_count >= self.drowsy_threshold and sleeping_count < 5:
-                # Confirmed drowsy: many drowsy frames but not sleeping
-                # BUT: if there are many awake frames mixed in, stay awake
-                if awake_count < drowsy_count:
-                    final_state = 'drowsy'
-                    final_score = 0.6
-                else:
-                    final_state = 'awake'
-                    final_score = 0.2
+                
+                # Log sleeping detection (if not recently logged)
+                if tracking['last_logged'] is None or \
+                   (current_time - tracking['last_logged']) > self.log_cooldown:
+                    logging.warning(
+                        f"🚨 PHÁT HIỆN NGỦ GẬT: Người #{person_id} đã cúi đầu liên tục "
+                        f"{sleeping_duration:.1f}s - Trạng thái: GỤC XUỐNG BÀN"
+                    )
+                    tracking['last_logged'] = current_time
+                    tracking['current_state'] = 'sleeping'
             else:
-                # Default to awake unless overwhelming evidence
-                final_state = 'awake'
-                final_score = 0.1
+                # Still in transition - need more time
+                final_state = tracking['current_state']
+                final_score = self.state_scores.get(final_state, 0.1)
+        
+        # Check drowsy state (4s continuous)
+        elif tracking['drowsy_since'] is not None:
+            drowsy_duration = current_time - tracking['drowsy_since']
+            if drowsy_duration >= self.drowsy_time_threshold:
+                final_state = 'drowsy'
+                final_score = 0.6
+                
+                # Log drowsy detection (if not recently logged)
+                if tracking['last_logged'] is None or \
+                   (current_time - tracking['last_logged']) > self.log_cooldown:
+                    logging.warning(
+                        f"⚠️ PHÁT HIỆN NGỦ GẬT: Người #{person_id} đã cúi đầu liên tục "
+                        f"{drowsy_duration:.1f}s - Trạng thái: NGỦ GẬT"
+                    )
+                    tracking['last_logged'] = current_time
+                    tracking['current_state'] = 'drowsy'
+            else:
+                # Still in transition - need more time
+                final_state = tracking['current_state']
+                final_score = self.state_scores.get(final_state, 0.1)
+        
         else:
-            # Not enough history yet - default to awake (conservative)
+            # Awake state
             final_state = 'awake'
+            final_score = 0.1
+            tracking['current_state'] = 'awake'
             final_score = 0.1
         
         # Set final state
         person.drowsiness_state = final_state
         person.drowsiness_score = final_score
         
-        return person
-        if person_id not in self.drowsiness_history:
-            self.drowsiness_history[person_id] = []
-        
-        history = self.drowsiness_history[person_id]
-        history.append(person.drowsiness_score)
-        
-        # Keep only recent history
-        if len(history) > 10:
-            history.pop(0)
-        
-        # Smooth the state based on history for stability
-        if len(history) >= self.min_drowsiness_frames:
-            avg_score = sum(history[-self.min_drowsiness_frames:]) / self.min_drowsiness_frames
-            
-            if avg_score > 0.7:
-                person.drowsiness_state = "sleeping"
-            elif avg_score > 0.4:
-                person.drowsiness_state = "drowsy"
-            else:
-                person.drowsiness_state = "awake"
-        
-        person.last_update = time.time()
         return person
 
 class YOLODetector:
@@ -456,7 +524,9 @@ class YOLODetector:
         self.model_path = model_path
         self.model = None
         self.drowsiness_analyzer = DrowsinessAnalyzer()
-        self.tracker = HeadFocusedTracker(iou_threshold=0.3, max_age=30, head_iou_threshold=0.25)
+        # PERFORMANCE FIX: Use faster custom tracker or disable for YOLO built-in
+        self.use_custom_tracker = False  # Set to True to use HeadFocusedTracker
+        self.tracker = HeadFocusedTracker(iou_threshold=0.3, max_age=30, head_iou_threshold=0.25) if self.use_custom_tracker else None
         self.person_counter = 0
         self.frame_counter = 0
         self.last_fps_time = time.time()
@@ -534,20 +604,34 @@ class YOLODetector:
         
         # Run YOLO inference
         try:
-            # Use runtime-adjustable confidence/imgsz, default tuned for sensitivity
-            # Pass device/precision hints; Ultralytics handles placement internally
-            results = self.model(
-                frame,
-                conf=self.current_conf,
-                imgsz=self.current_imgsz,
-                device=self.device,
-                half=self.use_half,
-                verbose=False,
-            )
+            # PERFORMANCE FIX: Use YOLO built-in tracker for better speed
+            # ByteTrack is much faster than custom HeadFocusedTracker
+            if self.use_custom_tracker:
+                # Old method: inference only, manual tracking
+                results = self.model(
+                    frame,
+                    conf=self.current_conf,
+                    imgsz=self.current_imgsz,
+                    device=self.device,
+                    half=self.use_half,
+                    verbose=False,
+                )
+            else:
+                # NEW: Use YOLO's built-in tracker (ByteTrack) - MUCH FASTER
+                results = self.model.track(
+                    frame,
+                    conf=self.current_conf,
+                    imgsz=self.current_imgsz,
+                    device=self.device,
+                    half=self.use_half,
+                    verbose=False,
+                    persist=True,  # Persist tracks across frames
+                    tracker="bytetrack.yaml"  # Use ByteTrack (fast & accurate)
+                )
             
             # Log detection results periodically
             if self.frame_counter % 30 == 0:
-                logging.info(f"[YOLO] Frame {self.frame_counter}: conf={self.current_conf}, imgsz={self.current_imgsz}, device={self.device}")
+                logging.info(f"[YOLO] Frame {self.frame_counter}: conf={self.current_conf}, imgsz={self.current_imgsz}, device={self.device}, tracker={'custom' if self.use_custom_tracker else 'bytetrack'}")
                 
         except Exception as e:
             logging.error(f"YOLO inference failed: {e}")
@@ -572,6 +656,11 @@ class YOLODetector:
                         # Get bounding box
                         box = boxes.xyxy[i].cpu().numpy()
                         confidence = boxes.conf[i].cpu().numpy()
+                        
+                        # PERFORMANCE FIX: Get track ID from YOLO built-in tracker
+                        track_id = None
+                        if not self.use_custom_tracker and hasattr(boxes, 'id') and boxes.id is not None and i < len(boxes.id):
+                            track_id = int(boxes.id[i].cpu().numpy())
 
                         # Get class name from trained model (if available)
                         class_name = None
@@ -613,17 +702,20 @@ class YOLODetector:
                                 bbox=body_bbox,
                                 head_bbox=head_bbox,
                                 confidence=float(confidence),
-                                keypoints=pose_keypoints
+                                keypoints=pose_keypoints,
+                                track_id=track_id  # PERFORMANCE FIX: Use YOLO tracker ID
                             )
 
                             pending.append((person, class_name))
                             self.person_counter += 1
 
-        # First, assign persistent IDs via tracker so temporal smoothing uses stable IDs
-        if pending:
+        # PERFORMANCE FIX: Use YOLO built-in tracker or custom tracker
+        if self.use_custom_tracker and pending:
+            # Old method: Use custom HeadFocusedTracker (slower)
             tracked_persons = self.tracker.update([p for p, _ in pending])
         else:
-            tracked_persons = []
+            # NEW: Track IDs already assigned by YOLO ByteTrack (faster!)
+            tracked_persons = [p for p, _ in pending]
 
         # Now analyze drowsiness using stable track_id
         for idx, person in enumerate(tracked_persons):
@@ -666,8 +758,9 @@ class YOLODetector:
         )
     
     def draw_detections(self, frame: np.ndarray, result: DetectionResult) -> np.ndarray:
-        """Draw detection results on frame with head-focused tracking boxes"""
+        """Draw detection results on frame with depth-aware scaling (adaptive box size based on distance)"""
         annotated_frame = frame.copy()
+        frame_height, frame_width = frame.shape[:2]
         
         for person in result.persons:
             # Use head_bbox if available (smaller, focused), otherwise use body bbox
@@ -678,6 +771,45 @@ class YOLODetector:
             
             x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
             
+            # 🔥 DEPTH-AWARE SCALING: Calculate relative distance from bbox size
+            # Larger bbox = closer to camera, smaller bbox = farther from camera
+            bbox_width = x2 - x1
+            bbox_height = y2 - y1
+            bbox_area = bbox_width * bbox_height
+            frame_area = frame_width * frame_height
+            
+            # Normalized size (0.0 to 1.0)
+            # 0.0 = very far (tiny box), 1.0 = very close (huge box)
+            bbox_ratio = bbox_area / frame_area
+            
+            # Estimate relative depth (0-100 scale)
+            # Closer person = higher depth score, farther = lower depth score
+            if bbox_ratio > 0.3:  # Very close (>30% of frame)
+                depth_level = 5  # Closest
+                depth_text = "Very Close"
+            elif bbox_ratio > 0.15:  # Close (15-30% of frame)
+                depth_level = 4
+                depth_text = "Close"
+            elif bbox_ratio > 0.05:  # Medium (5-15% of frame)
+                depth_level = 3
+                depth_text = "Medium"
+            elif bbox_ratio > 0.02:  # Far (2-5% of frame)
+                depth_level = 2
+                depth_text = "Far"
+            else:  # Very far (<2% of frame)
+                depth_level = 1
+                depth_text = "Very Far"
+            
+            # 🎨 Scale visual elements based on depth
+            # Line thickness: 1-4 pixels based on distance
+            line_thickness = max(1, min(4, depth_level))
+            
+            # Font scale: 0.3-0.7 based on distance
+            base_font_scale = 0.3 + (depth_level - 1) * 0.1  # 0.3 for far, 0.7 for close
+            
+            # Circle radius: 2-6 pixels based on distance
+            circle_radius = max(2, min(6, depth_level + 1))
+            
             # Choose color based on drowsiness state
             if person.drowsiness_state == "sleeping":
                 color = (0, 0, 255)  # Red (BGR)
@@ -686,24 +818,25 @@ class YOLODetector:
             else:
                 color = (0, 255, 0)  # Green (BGR)
             
-            # Draw head-focused bounding box (thinner line for smaller boxes)
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+            # Draw bounding box with adaptive thickness (thicker for closer persons)
+            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, line_thickness)
             
             # Calculate center point
             center_x = (x1 + x2) // 2
             center_y = (y1 + y2) // 2
             
-            # Draw center point circle
-            cv2.circle(annotated_frame, (center_x, center_y), 4, color, -1)
-            cv2.circle(annotated_frame, (center_x, center_y), 4, (255, 255, 255), 1)
+            # Draw center point circle with adaptive radius (larger for closer persons)
+            cv2.circle(annotated_frame, (center_x, center_y), circle_radius, color, -1)
+            cv2.circle(annotated_frame, (center_x, center_y), circle_radius, (255, 255, 255), 1)
             
             # Use track_id if available
             track_id = getattr(person, 'track_id', None) or person.id
             
-            # Draw person ID (top of box)
+            # Draw person ID with depth indicator (top of box)
+            # Format: "#ID [Depth]" e.g. "#1 [Close]"
             id_label = f"#{track_id}"
-            id_font_scale = 0.5
-            id_thickness = 1
+            id_font_scale = base_font_scale + 0.2  # Slightly larger for ID
+            id_thickness = max(1, line_thickness - 1)  # Slightly thinner than box
             id_label_size, _ = cv2.getTextSize(id_label, cv2.FONT_HERSHEY_SIMPLEX, id_font_scale, id_thickness)
             
             # Background for ID label
@@ -718,18 +851,42 @@ class YOLODetector:
             # Draw drowsiness state only if not awake (bottom of box)
             if person.drowsiness_state != "awake":
                 state_label = person.drowsiness_state.upper()
-                state_font_scale = 0.4
-                state_thickness = 1
+                state_font_scale = base_font_scale  # Scale with depth
+                state_thickness = max(1, line_thickness - 1)
                 state_label_size, _ = cv2.getTextSize(state_label, cv2.FONT_HERSHEY_SIMPLEX, state_font_scale, state_thickness)
                 
                 # Background for state label
+                padding = max(2, depth_level)  # Adaptive padding
                 cv2.rectangle(annotated_frame,
-                             (center_x - state_label_size[0] // 2 - 3, y2),
-                             (center_x + state_label_size[0] // 2 + 3, y2 + state_label_size[1] + 6),
+                             (center_x - state_label_size[0] // 2 - padding, y2),
+                             (center_x + state_label_size[0] // 2 + padding, y2 + state_label_size[1] + padding * 2),
                              color, -1)
                 cv2.putText(annotated_frame, state_label,
-                           (center_x - state_label_size[0] // 2, y2 + state_label_size[1] + 2),
+                           (center_x - state_label_size[0] // 2, y2 + state_label_size[1] + padding - 1),
                            cv2.FONT_HERSHEY_SIMPLEX, state_font_scale, (255, 255, 255), state_thickness)
+            
+            # 🆕 DEPTH INDICATOR: Show estimated distance (optional - can be disabled)
+            # Draw small depth badge next to ID label
+            depth_badge = f"[{depth_text}]"
+            depth_font_scale = base_font_scale * 0.6  # Smaller than ID
+            depth_thickness = 1
+            depth_badge_size, _ = cv2.getTextSize(depth_badge, cv2.FONT_HERSHEY_SIMPLEX, depth_font_scale, depth_thickness)
+            
+            # Position: right side of ID label
+            depth_x = center_x + id_label_size[0] // 2 + 6
+            depth_y = y1 - 4
+            
+            # Only show if there's enough space (don't overlap with edge)
+            if depth_x + depth_badge_size[0] + 4 < frame_width:
+                # Background
+                cv2.rectangle(annotated_frame,
+                             (depth_x - 2, y1 - depth_badge_size[1] - 8),
+                             (depth_x + depth_badge_size[0] + 2, y1),
+                             (80, 80, 80), -1)  # Dark gray background
+                # Text
+                cv2.putText(annotated_frame, depth_badge,
+                           (depth_x, y1 - 4),
+                           cv2.FONT_HERSHEY_SIMPLEX, depth_font_scale, (200, 200, 200), depth_thickness)  # Light gray text
         
         # Draw FPS
         fps_text = f"FPS: {result.fps:.1f}"

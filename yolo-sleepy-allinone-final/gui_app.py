@@ -14,16 +14,8 @@ try:
 except Exception:
     mp = None  # type: ignore
 
-# Import multi-camera widget
-try:
-    from multi_camera_gui import MultiCameraWidget
-    HAS_MULTI_CAMERA = True
-except ImportError:
-    HAS_MULTI_CAMERA = False
-    MultiCameraWidget = None
-
 from PyQt5.QtCore import Qt, QTimer, QSize
-from PyQt5.QtGui import QImage, QPixmap, QKeySequence
+from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -43,9 +35,10 @@ from PyQt5.QtWidgets import (
     QTabWidget,
     QToolBar,
     QAction,
-    QStyle,
+    
     QStatusBar,
     QSplitter,
+    QGroupBox,
 )
 
 
@@ -290,36 +283,21 @@ class SleepyWindow(QMainWindow):
         self.setWindowTitle("Sleepy Detection — Classroom Edition")
         self.args = args
 
-        # Robust model fallback (mirror CLI logic) BEFORE loading pose model
-        try:
-            base_dir = os.path.dirname(__file__)
-            if not os.path.exists(self.args.model):
-                print(f"⚠️  (GUI) Model không tồn tại: {self.args.model}")
-                # Candidate local models to try (ordered)
-                candidates = [
-                    os.path.join(base_dir, "yolo11n-pose.pt"),
-                    os.path.join(base_dir, "yolo11s-pose.pt"),
-                    os.path.join(base_dir, "yolo11m-pose.pt"),
-                    os.path.join(os.path.dirname(base_dir), "yolo11n-pose.pt"),  # parent repo root copy
-                    os.path.join(os.path.dirname(base_dir), "yolo11s-pose.pt"),
-                ]
-                for c in candidates:
-                    if os.path.exists(c):
-                        print(f"✅ (GUI) Fallback dùng model: {c}")
-                        self.args.model = c
-                        break
-                else:
-                    # Final fallback to alias that Ultralytics can auto-download
-                    print("🔽 (GUI) Không tìm thấy weights nội bộ, dùng alias 'yolo11n-pose.pt' để tự tải.")
-                    self.args.model = "yolo11n-pose.pt"
-        except Exception as e:
-            print(f"❌ (GUI) Lỗi trong bước fallback model: {e}")
-
         # Models
         self.pose_model = YOLO(self.args.model)
+        # Track current model family for HUD and switching
+        self.model_version = "v11"
+        self.weights_v11 = self._default_v11_weights()
+        self.weights_v5 = ""
+        self.weights_v3 = ""
+        # Eye model
         self.eye_model = None
+        # Yawn model
         self.yawn_model = None
+        # Face mesh (for eyes)
         self.face_mesh = None
+        # MediaPipe Pose (fallback when model has no keypoints)
+        self.mp_pose = None
         if self.args.enable_eyes and mp is not None:
             try:
                 self.face_mesh = mp.solutions.face_mesh.FaceMesh(
@@ -386,15 +364,21 @@ class SleepyWindow(QMainWindow):
         self._init_theme()
         self._init_toolbar()
         self._init_statusbar()
-
         # UI setup
         self._build_ui()
+        # Reflect initial model selection in header buttons
+        self._update_model_button_styles()
 
-        # Show current model info on status bar
+    def closeEvent(self, event):  # type: ignore[override]
         try:
-            self.sb_left.setText(f"Loaded: {os.path.basename(self.args.model)}")
-        except Exception:
-            self.sb_left.setText("Model loaded")
+            self.on_stop()
+            if self.face_mesh is not None:
+                try:
+                    self.face_mesh.close()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        finally:
+            super().closeEvent(event)
 
     def _safe_crop(self, img, x1, y1, x2, y2):
         h, w = img.shape[:2]
@@ -443,6 +427,50 @@ class SleepyWindow(QMainWindow):
             return None
         return None
 
+    def _init_toolbar(self):
+        tb = QToolBar("Main Toolbar", self)
+        tb.setIconSize(QSize(24, 24))
+        self.addToolBar(tb)
+
+        # Use text-only actions for broad compatibility
+        act_start = QAction("Start", self)
+        act_stop = QAction("Stop", self)
+        act_snapshot = QAction("Snapshot", self)
+        act_open_video = QAction("Open Video", self)
+        act_open_image = QAction("Open Image", self)
+        act_fullscreen = QAction("Fullscreen", self)
+        act_theme = QAction("Theme", self)
+        # Model switching actions
+        act_yolo_v3 = QAction("YOLOv3", self)
+        act_yolo_v5 = QAction("YOLOv5", self)
+        act_yolo_v11 = QAction("YOLOv11", self)
+
+        act_start.triggered.connect(self.on_start)
+        act_stop.triggered.connect(self.on_stop)
+        act_snapshot.triggered.connect(self.on_snapshot)
+        act_open_video.triggered.connect(self.on_browse_video)
+        act_open_image.triggered.connect(self.on_browse_image)
+        act_fullscreen.triggered.connect(self.toggle_fullscreen)
+        act_theme.triggered.connect(self.toggle_theme)
+        act_yolo_v3.triggered.connect(self.on_switch_v3)
+        act_yolo_v5.triggered.connect(self.on_switch_v5)
+        act_yolo_v11.triggered.connect(self.on_switch_v11)
+
+        tb.addAction(act_start)
+        tb.addAction(act_stop)
+        tb.addSeparator()
+        tb.addAction(act_snapshot)
+        tb.addSeparator()
+        tb.addAction(act_open_video)
+        tb.addAction(act_open_image)
+        tb.addSeparator()
+        tb.addAction(act_yolo_v3)
+        tb.addAction(act_yolo_v5)
+        tb.addAction(act_yolo_v11)
+        tb.addSeparator()
+        tb.addAction(act_fullscreen)
+        tb.addAction(act_theme)
+
     def _build_ui(self):
         cw = QWidget(self)
         self.setCentralWidget(cw)
@@ -469,28 +497,30 @@ class SleepyWindow(QMainWindow):
         # Header
         header = QWidget()
         hbox = QHBoxLayout(header)
-        hbox.setContentsMargins(0, 0, 0, 6)
+        hbox.setContentsMargins(0, 0, 6, 6)
         self.logo_label = QLabel("")
         self.logo_label.setFixedHeight(48)
         self.logo_label.setStyleSheet("background: transparent;")
         self.header_title = QLabel("Sleepy Detection — Classroom Edition")
         self.header_title.setStyleSheet("font-size: 18px; font-weight: 600; color: #0f172a;")
-        # Quick model selector in header (synced with Settings)
-        self.header_model_combo = QComboBox()
-        for it in ["YOLOv11n-pose (default)", "YOLOv11s-pose", "YOLOv8n-pose", "YOLOv5n-pose", "Custom…"]:
-            self.header_model_combo.addItem(it)
-        self.header_model_combo.setCurrentText("YOLOv11n-pose (default)")
         self.btn_choose_logo = QPushButton("Chọn Logo…")
         self.btn_choose_logo.setCursor(Qt.PointingHandCursor)  # type: ignore[attr-defined]
         self.btn_choose_logo.clicked.connect(self.on_choose_logo)
-        # After header construction add quick multi-cam button
-        self.btn_goto_multi = QPushButton("Multi-Cam ▶")
-        self.btn_goto_multi.setToolTip("Chuyển nhanh tới tab Multi-Camera")
+        # Model switch buttons
+        self.btn_v3 = QPushButton("YOLOv3")
+        self.btn_v5 = QPushButton("YOLOv5")
+        self.btn_v11 = QPushButton("YOLOv11")
+        for b in (self.btn_v3, self.btn_v5, self.btn_v11):
+            b.setCursor(Qt.PointingHandCursor)  # type: ignore[attr-defined]
+        self.btn_v3.clicked.connect(self.on_switch_v3)
+        self.btn_v5.clicked.connect(self.on_switch_v5)
+        self.btn_v11.clicked.connect(self.on_switch_v11)
         hbox.addWidget(self.logo_label, 0)
         hbox.addWidget(self.header_title, 1)
-        hbox.addWidget(self.header_model_combo, 0)
+        hbox.addWidget(self.btn_v3, 0)
+        hbox.addWidget(self.btn_v5, 0)
+        hbox.addWidget(self.btn_v11, 0)
         hbox.addWidget(self.btn_choose_logo, 0)
-        hbox.addWidget(self.btn_goto_multi, 0)
 
         # Camera Tab
         cam_tab = QWidget()
@@ -529,23 +559,6 @@ class SleepyWindow(QMainWindow):
 
         # Settings Tab
         set_tab = QWidget(); set_form = QFormLayout(set_tab)
-        # Model selection
-        self.model_combo = QComboBox()
-        # Presets
-        preset_items = [
-            "YOLOv11n-pose (default)",
-            "YOLOv11s-pose",
-            "YOLOv8n-pose",
-            "YOLOv5n-pose",
-            "Custom…",
-        ]
-        for it in preset_items:
-            self.model_combo.addItem(it)
-        self.model_combo.setCurrentText("YOLOv11n-pose (default)")
-        self.model_path_edit = QLineEdit(); self.model_path_edit.setText(self.args.model)
-        self.btn_browse_model = QPushButton("Browse…")
-        row_model = QHBoxLayout(); row_model.addWidget(self.model_combo); row_model.addWidget(self.model_path_edit); row_model.addWidget(self.btn_browse_model)
-        set_form.addRow("Pose model", row_model)
         self.conf_spin = QDoubleSpinBox(); self.conf_spin.setRange(0.05, 0.99); self.conf_spin.setSingleStep(0.05); self.conf_spin.setValue(self.args.conf)
         self.imgsz_spin = QSpinBox(); self.imgsz_spin.setRange(256, 1280); self.imgsz_spin.setSingleStep(32); self.imgsz_spin.setValue(self.args.imgsz)
         self.flip_combo = QComboBox(); self.flip_combo.addItems(["none", "h", "v", "180"]); self.flip_combo.setCurrentText(self.args.flip)
@@ -568,6 +581,35 @@ class SleepyWindow(QMainWindow):
         set_form.addRow("Max persons", self.max_people_spin)
         set_form.addRow(self.show_grid_check)
         set_form.addRow(self.enable_eyes_check)
+        # Settings Tab additions: Model Weights group
+        # After existing controls are added to set_form
+        try:
+            model_grp = QGroupBox("Model Weights")
+            model_form = QFormLayout(model_grp)
+            # v11 weights row
+            self.w_v11_edit = QLineEdit(self.weights_v11)
+            self.w_v11_browse = QPushButton("Browse…")
+            self.w_v11_browse.clicked.connect(self.on_browse_v11)
+            row11 = QHBoxLayout(); row11.addWidget(self.w_v11_edit); row11.addWidget(self.w_v11_browse)
+            w11 = QWidget(); w11.setLayout(row11)
+            model_form.addRow("YOLOv11 pose", w11)
+            # v5 weights row
+            self.w_v5_edit = QLineEdit(self.weights_v5)
+            self.w_v5_browse = QPushButton("Browse…")
+            self.w_v5_browse.clicked.connect(self.on_browse_v5)
+            row5 = QHBoxLayout(); row5.addWidget(self.w_v5_edit); row5.addWidget(self.w_v5_browse)
+            w5 = QWidget(); w5.setLayout(row5)
+            model_form.addRow("YOLOv5 (detect/pose)", w5)
+            # v3 weights row (experimental)
+            self.w_v3_edit = QLineEdit(self.weights_v3)
+            self.w_v3_browse = QPushButton("Browse…")
+            self.w_v3_browse.clicked.connect(self.on_browse_v3)
+            row3 = QHBoxLayout(); row3.addWidget(self.w_v3_edit); row3.addWidget(self.w_v3_browse)
+            w3 = QWidget(); w3.setLayout(row3)
+            model_form.addRow("YOLOv3 (experimental)", w3)
+            set_form.addRow(model_grp)
+        except Exception:
+            pass
         tabs.addTab(set_tab, "Settings")
 
         # Logs/Stats Tab
@@ -577,31 +619,6 @@ class SleepyWindow(QMainWindow):
         self.log_text.setObjectName("logText")
         v.addWidget(self.stats_label); v.addWidget(self.log_text)
         tabs.addTab(log_tab, "Logs")
-
-        # Multi-Camera Tab
-        if HAS_MULTI_CAMERA:
-            try:
-                self.multi_camera_widget = MultiCameraWidget(model_path=self.args.model, parent=self)
-                tabs.addTab(self.multi_camera_widget, "📹 Multi-Camera")
-            except Exception as e:
-                print(f"Failed to create multi-camera tab: {e}")
-                self.multi_camera_widget = None
-        else:
-            # Fallback placeholder without shadowing global name
-            class _MultiCameraPlaceholder(QWidget):
-                def __init__(self):
-                    super().__init__()
-                    l = QVBoxLayout(self)
-                    msg = QLabel(
-                        "<b>Multi-Camera module not loaded.</b><br>"
-                        "File <code>multi_camera_gui.py</code> bị lỗi hoặc thiếu phụ thuộc.<br>"
-                        "Bạn vẫn có thể dùng nguồn đơn ở tab Source.<br><br>"
-                        "Kiểm tra: ultralytics, opencv-python, PyQt5."
-                    )
-                    msg.setWordWrap(True)
-                    l.addWidget(msg, 0, Qt.AlignTop)  # type: ignore[attr-defined]
-            self.multi_camera_widget = _MultiCameraPlaceholder()
-            tabs.addTab(self.multi_camera_widget, "📹 Multi-Camera")
 
         # Assemble right side
         right_widget = QWidget()
@@ -625,100 +642,6 @@ class SleepyWindow(QMainWindow):
         self.btn_connect.clicked.connect(self.on_start)
         self.btn_disconnect.clicked.connect(self.on_stop)
         self.btn_snapshot.clicked.connect(self.on_snapshot)
-        self.btn_browse_model.clicked.connect(self.on_browse_model)
-        self.model_combo.currentTextChanged.connect(self.on_model_preset_changed)
-        self.model_path_edit.editingFinished.connect(self.on_model_path_changed)
-        # Sync header and settings combos both ways without loops
-        self.header_model_combo.currentTextChanged.connect(self.on_header_model_changed)
-        self.model_combo.currentTextChanged.connect(self.on_settings_model_changed)
-        # After tabs created, wire button
-        try:
-            self.btn_goto_multi.clicked.connect(lambda: self._focus_multi_tab())
-        except Exception:
-            pass
-
-    def _focus_multi_tab(self):
-        try:
-            # Find QTabWidget among children
-            tabs = self.findChildren(QTabWidget)
-            if not tabs:
-                return
-            tw = tabs[0]
-            # Look for index containing 'Multi-Camera'
-            for i in range(tw.count()):
-                if 'Multi-Camera' in tw.tabText(i):
-                    tw.setCurrentIndex(i)
-                    break
-        except Exception:
-            pass
-
-    def _resolve_preset_path(self, preset_name: str) -> str:
-        # Returns a local path or model alias; auto-fallback to existing local weights when possible
-        base_dir = os.path.dirname(__file__)
-        # Default paths in repo root for v11
-        repo_root = os.path.abspath(os.path.join(base_dir, os.pardir))
-        v11n = os.path.join(repo_root, "yolo11n-pose.pt")
-        v11s = os.path.join(repo_root, "yolo11s-pose.pt")
-        v5n = os.path.join(repo_root, "yolov5n-pose.pt")
-        if preset_name.startswith("YOLOv11n") and os.path.exists(v11n):
-            return v11n
-        if preset_name.startswith("YOLOv11s") and os.path.exists(v11s):
-            return v11s
-        if preset_name.startswith("YOLOv8n"):
-            # Ultralytics will auto-download if not present
-            return "yolov8n-pose.pt"
-        if preset_name.startswith("YOLOv5n"):
-            # Check local file first, otherwise use Ultralytics alias
-            if os.path.exists(v5n):
-                return v5n
-            else:
-                return "yolov5n-pose.pt"
-        # Fallback to current text field
-        return self.model_path_edit.text().strip()
-
-    def _load_pose_model(self, path: str):
-        try:
-            self.pose_model = YOLO(path)
-            self.append_log(f"Đã tải model: {os.path.basename(path)}")
-            self.sb_left.setText(f"Loaded: {os.path.basename(path)}")
-        except Exception as e:
-            self.append_log(f"Lỗi tải model: {e}")
-
-    # Handlers: model selection
-    def on_browse_model(self):
-        p, _ = QFileDialog.getOpenFileName(self, "Chọn weights .pt", "", "PyTorch Weights (*.pt)")
-        if p:
-            self.model_combo.setCurrentText("Custom…")
-            self.model_path_edit.setText(p)
-            self._load_pose_model(p)
-
-    def on_model_preset_changed(self, text: str):
-        if text == "Custom…":
-            return
-        path = self._resolve_preset_path(text)
-        if path:
-            self.model_path_edit.setText(path)
-            self._load_pose_model(path)
-
-    def on_header_model_changed(self, text: str):
-        # Update Settings combo without triggering loop
-        if self.model_combo.currentText() != text:
-            self.model_combo.blockSignals(True)
-            self.model_combo.setCurrentText(text)
-            self.model_combo.blockSignals(False)
-        self.on_model_preset_changed(text)
-
-    def on_settings_model_changed(self, text: str):
-        # Update header combo without triggering loop
-        if self.header_model_combo.currentText() != text:
-            self.header_model_combo.blockSignals(True)
-            self.header_model_combo.setCurrentText(text)
-            self.header_model_combo.blockSignals(False)
-
-    def on_model_path_changed(self):
-        p = self.model_path_edit.text().strip()
-        if p:
-            self._load_pose_model(p)
 
     # Theme & Chrome
     def _init_theme(self):
@@ -768,45 +691,6 @@ class SleepyWindow(QMainWindow):
     def toggle_theme(self):
         self.apply_theme("dark" if self.theme == "light" else "light")
 
-    def _init_toolbar(self):
-        tb = QToolBar("Main Toolbar", self)
-        tb.setIconSize(QSize(24, 24))
-        self.addToolBar(tb)
-
-        # Use text-only actions for broad compatibility
-        act_start = QAction("Start", self)
-        act_stop = QAction("Stop", self)
-        act_snapshot = QAction("Snapshot", self)
-        act_open_video = QAction("Open Video", self)
-        act_open_image = QAction("Open Image", self)
-        act_fullscreen = QAction("Fullscreen", self)
-        act_theme = QAction("Theme", self)
-
-        act_start.triggered.connect(self.on_start)
-        act_stop.triggered.connect(self.on_stop)
-        act_snapshot.triggered.connect(self.on_snapshot)
-        act_open_video.triggered.connect(self.on_browse_video)
-        act_open_image.triggered.connect(self.on_browse_image)
-        act_fullscreen.triggered.connect(self.toggle_fullscreen)
-        act_theme.triggered.connect(self.toggle_theme)
-
-        tb.addAction(act_start)
-        tb.addAction(act_stop)
-        tb.addSeparator()
-        tb.addAction(act_snapshot)
-        tb.addSeparator()
-        tb.addAction(act_open_video)
-        tb.addAction(act_open_image)
-        tb.addSeparator()
-        tb.addAction(act_fullscreen)
-        tb.addAction(act_theme)
-
-        self.addAction(act_fullscreen)
-        act_fullscreen.setShortcut(QKeySequence("F11"))
-        act_start.setShortcut(QKeySequence("Ctrl+R"))
-        act_stop.setShortcut(QKeySequence("Ctrl+S"))
-        act_snapshot.setShortcut(QKeySequence("Ctrl+P"))
-
     def _init_statusbar(self):
         sb = QStatusBar(self)
         self.setStatusBar(sb)
@@ -848,18 +732,6 @@ class SleepyWindow(QMainWindow):
         self.SLEEP_FRAMES = self.sleep_frames_spin.value()
         self.AWAKE_FRAMES = self.awake_frames_spin.value()
         self.reset_states()
-        # Ensure model follows current selection
-        preset = self.model_combo.currentText()
-        desired = self._resolve_preset_path(preset)
-        if desired and isinstance(getattr(self.pose_model, 'ckpt_path', None), str):
-            try:
-                cur = os.path.basename(getattr(self.pose_model, 'ckpt_path'))
-            except Exception:
-                cur = ""
-        else:
-            cur = ""
-        if desired and (not cur or os.path.basename(desired) != cur):
-            self._load_pose_model(desired)
         # Setup recording
         self.record_enabled = self.record_check.isChecked()
         if self.record_enabled:
@@ -995,18 +867,175 @@ class SleepyWindow(QMainWindow):
         if self.record_enabled:
             self._write_frame(vis)
 
-    # Core processing
+    def toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showMaximized()
+        else:
+            self.showFullScreen()
+
+    # Recording helpers
+    def _ensure_writer(self, frame: np.ndarray):
+        if not self.record_enabled:
+            return
+        if self.writer is not None:
+            return
+        if not self.save_path:
+            return
+        h, w = frame.shape[:2]
+        self.last_frame_size = (w, h)
+        fourcc = 0
+        try:
+            fourcc_fn = getattr(cv2, "VideoWriter_fourcc", None)
+            if callable(fourcc_fn):
+                fourcc = int(fourcc_fn(*"mp4v"))  # type: ignore[arg-type]
+        except Exception:
+            fourcc = 0
+        fps = 25.0
+        self.writer = cv2.VideoWriter(self.save_path, fourcc, fps, (w, h))
+
+    def _write_frame(self, frame: np.ndarray):
+        try:
+            self._ensure_writer(frame)
+            if self.writer is not None and self.last_frame_size == (frame.shape[1], frame.shape[0]):
+                self.writer.write(frame)
+        except Exception:
+            pass
+
+    def _release_writer(self):
+        if self.writer is not None:
+            try:
+                self.writer.release()
+            except Exception:
+                pass
+        self.writer = None
+
+    # Snapshot
+    def on_snapshot(self):
+        if self.video_label.pixmap() is None:
+            self.append_log("Chưa có khung hình để chụp.")
+            return
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        path = f"snapshot_{ts}.png"
+        # Grab current frame by re-rendering latest capture if available
+        if self.cap is not None:
+            ok, frame = self.cap.read()
+            if ok and frame is not None:
+                vis = self.process_frame_once(frame)
+                cv2.imwrite(path, vis)
+                self.append_log(f"Đã lưu ảnh: {path}")
+                return
+        # Fallback: try to save from displayed pixmap
+        pm = self.video_label.pixmap()
+        if pm is not None:
+            pm.save(path)
+            self.append_log(f"Đã lưu ảnh: {path}")
+
+    # Browse handlers for weights
+    def on_browse_v11(self):
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn weights YOLOv11 pose", self.weights_v11 or "", "PyTorch (*.pt)")
+        if p:
+            self.weights_v11 = p
+            if hasattr(self, 'w_v11_edit'):
+                self.w_v11_edit.setText(p)
+
+    def on_browse_v5(self):
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn weights YOLOv5", self.weights_v5 or "", "PyTorch (*.pt)")
+        if p:
+            self.weights_v5 = p
+            if hasattr(self, 'w_v5_edit'):
+                self.w_v5_edit.setText(p)
+
+    def on_browse_v3(self):
+        p, _ = QFileDialog.getOpenFileName(self, "Chọn weights YOLOv3 (pt/weights)", self.weights_v3 or "", "All (*.*)")
+        if p:
+            self.weights_v3 = p
+            if hasattr(self, 'w_v3_edit'):
+                self.w_v3_edit.setText(p)
+
+    # Model defaults and switching
+    def _default_v11_weights(self) -> str:
+        here = os.path.dirname(__file__)
+        cands = [
+            os.path.join(os.path.dirname(here), "yolo11s-pose.pt"),
+            os.path.join(os.path.dirname(here), "yolo11n-pose.pt"),
+            getattr(self.args, 'model', ''),
+        ]
+        for p in cands:
+            if p and os.path.exists(p):
+                return p
+        return getattr(self.args, 'model', '')
+
+    def _update_model_button_styles(self):
+        try:
+            def set_style(btn, active: bool):
+                if active:
+                    btn.setStyleSheet("QPushButton { background: #1d4ed8; color: #ffffff; font-weight: 600; }")
+                else:
+                    btn.setStyleSheet("")
+            set_style(self.btn_v3, self.model_version == "v3")
+            set_style(self.btn_v5, self.model_version == "v5")
+            set_style(self.btn_v11, self.model_version == "v11")
+        except Exception:
+            pass
+
+    def _reload_model(self, label: str, path: str):
+        try:
+            if not path:
+                raise RuntimeError("Chưa chọn file weights.")
+            self.pose_model = YOLO(path)
+            self.model_version = label
+            self.reset_states()
+            self.append_log(f"Đã chuyển sang {label}: {os.path.basename(path)}")
+            self.sb_left.setText(f"Model: {label}")
+            self._update_model_button_styles()
+        except Exception as e:
+            self.append_log(f"Lỗi tải {label}: {e}")
+            self.sb_left.setText(f"Model switch failed: {label}")
+
+    def on_switch_v11(self):
+        p = (self.w_v11_edit.text().strip() if hasattr(self, 'w_v11_edit') else self.weights_v11) or self.weights_v11
+        self._reload_model("v11", p)
+
+    def on_switch_v5(self):
+        p = (self.w_v5_edit.text().strip() if hasattr(self, 'w_v5_edit') else self.weights_v5) or self.weights_v5
+        if not p:
+            self.append_log("Vui lòng chọn weights YOLOv5 trong Settings > Model Weights.")
+            return
+        self._reload_model("v5", p)
+
+    def on_switch_v3(self):
+        p = (self.w_v3_edit.text().strip() if hasattr(self, 'w_v3_edit') else self.weights_v3) or self.weights_v3
+        if not p:
+            self.append_log("YOLOv3 (experimental): cần chọn weights/cfg phù hợp. Hiện mô hình có thể không hỗ trợ keypoints.")
+        try:
+            self.pose_model = YOLO(p)
+            self.model_version = "v3"
+            self.reset_states()
+            self.append_log(f"Đã chuyển sang YOLOv3: {os.path.basename(p)}")
+            self.sb_left.setText("Model: v3")
+            self._update_model_button_styles()
+        except Exception as e:
+            self.append_log(f"Không thể tải bằng Ultralytics: {e}. Sẽ giữ nguyên mô hình hiện tại, gán nhãn 'v3' để so sánh giao diện.")
+            self.model_version = "v3"
+            self._update_model_button_styles()
+
     def process_frame_once(self, frame: np.ndarray) -> np.ndarray:
-        res = self.pose_model(frame, imgsz=int(self.imgsz_spin.value()), conf=float(self.conf_spin.value()))
-        r0 = res[0] if res and len(res) > 0 else None
-        vis = r0.plot(line_width=2, conf=True) if r0 is not None else frame.copy()
+        # Inference
+        try:
+            res = self.pose_model(frame, imgsz=int(self.imgsz_spin.value()), conf=float(self.conf_spin.value()))
+            r0 = res[0] if res and len(res) > 0 else None
+            vis = r0.plot(line_width=2, conf=True) if r0 is not None else frame.copy()
+        except Exception as e:
+            self.append_log(f"Lỗi suy luận: {e}")
+            r0 = None
+            vis = frame.copy()
 
         angle_thr = float(self.angle_spin.value())
         dropH_thr = float(self.dropH_spin.value())
         dropSW_thr = float(self.dropSW_spin.value())
         sleepy_count = 0
 
-        if r0 is not None and hasattr(r0, "keypoints"):
+        if r0 is not None and hasattr(r0, 'keypoints') and r0.keypoints is not None:
             # Collect boxes, confidences, classes
             boxes = []
             confs = []
@@ -1089,16 +1118,8 @@ class SleepyWindow(QMainWindow):
                 if len(hq) >= 3:
                     ang = float(np.median(np.array(hq)))
 
-
-                # --- Smart drowsiness detection state machine ---
-                # States: AWAKE, DROWSY, SLEEPY, WAKING, RECOVERED
-                # Map to Vietnamese for UI: "Bình thường", "Ngủ gật", "Gục xuống bàn", "Thức dậy"
-                prev_status = self.sleep_status.get(tid, "Bình thường")
-                now = time.time()
-                # State counters
                 prev_sleep = self.sleep_states.get(tid, 0)
                 prev_awake = self.awake_states.get(tid, 0)
-                # State machine logic
                 if state in ("Ngủ gật", "Gục xuống bàn"):
                     self.sleep_states[tid] = prev_sleep + 1
                     self.awake_states[tid] = 0
@@ -1106,25 +1127,21 @@ class SleepyWindow(QMainWindow):
                     self.awake_states[tid] = prev_awake + 1
                     self.sleep_states[tid] = 0
 
-                # Determine effective state
+                prev_status = self.sleep_status.get(tid, "Bình thường")
+                now = time.time()
                 eff_state = prev_status
                 if prev_status in ("Ngủ gật", "Gục xuống bàn"):
                     if state not in ("Ngủ gật", "Gục xuống bàn") and self.awake_states[tid] >= self.AWAKE_FRAMES:
-                        eff_state = "Thức dậy"
-                elif prev_status == "Thức dậy":
-                    # After waking, return to normal after a few frames
-                    if self.awake_states[tid] >= self.AWAKE_FRAMES:
                         eff_state = "Bình thường"
                 else:
                     if state in ("Ngủ gật", "Gục xuống bàn") and self.sleep_states[tid] >= self.SLEEP_FRAMES:
                         eff_state = state
 
-                # Event logging and transitions
                 if prev_status != eff_state:
                     if eff_state in ("Ngủ gật", "Gục xuống bàn"):
                         self.sleep_start_time[tid] = now
                         self.append_log(f"[{time.strftime('%H:%M:%S')}] ID {tid}: {eff_state}")
-                    elif eff_state == "Thức dậy":
+                    elif prev_status in ("Ngủ gật", "Gục xuống bàn") and eff_state == "Bình thường":
                         if tid in self.sleep_start_time:
                             duration = now - self.sleep_start_time[tid]
                             self.max_sleep_duration[tid] = max(self.max_sleep_duration.get(tid, 0.0), duration)
@@ -1148,6 +1165,43 @@ class SleepyWindow(QMainWindow):
                     vis = draw_text_unicode(
                         vis, label, (int(nose[0]), max(20, int(nose[1]) - 10)), color=color, font_size=22
                     )
+        else:
+            # Fallback: use MediaPipe Pose to estimate keypoints when YOLO model has no pose output
+            if mp is not None:
+                try:
+                    if self.mp_pose is None:
+                        self.mp_pose = mp.solutions.pose.Pose(
+                            model_complexity=0,
+                            enable_segmentation=False,
+                            min_detection_confidence=0.5,
+                            min_tracking_confidence=0.5,
+                        )
+                    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    mp_res = self.mp_pose.process(image_rgb)
+                    if hasattr(mp_res, "pose_landmarks") and mp_res.pose_landmarks:
+                        ih, iw = frame.shape[:2]
+                        lm = mp_res.pose_landmarks.landmark
+                        # Build minimal keypoints array with indices 0 (nose), 5/6 (shoulders in COCO order)
+                        k = np.zeros((7, 2), dtype=np.float32)
+                        # MediaPipe indices: 0=nose, 11=left_shoulder, 12=right_shoulder
+                        nose = lm[0]
+                        lsh = lm[11]
+                        rsh = lm[12]
+                        k[0] = [nose.x * iw, nose.y * ih]
+                        k[5] = [lsh.x * iw, lsh.y * ih]
+                        k[6] = [rsh.x * iw, rsh.y * ih]
+                        state, ang, drop = classify_pose_custom(k, ih, iw, angle_thr, dropH_thr, dropSW_thr)
+                        color = (0, 255, 0)
+                        if state == "Ngủ gật":
+                            color = (0, 0, 255); sleepy_count += 1
+                        elif state == "Gục xuống bàn":
+                            color = (255, 0, 255); sleepy_count += 1
+                        label = f"{state} ({ang:.1f}°, {drop*100:.0f}%)"
+                        vis = draw_text_unicode(
+                            vis, label, (int(k[0][0]), max(20, int(k[0][1]) - 10)), color=color, font_size=22
+                        )
+                except Exception:
+                    pass
 
         # Secondary eye/yawn pipeline (optional)
         sec_info = []
@@ -1248,7 +1302,7 @@ class SleepyWindow(QMainWindow):
             vis = draw_text_unicode(vis, f"Ngủ gật lâu nhất: {max_time:.1f}s", (20, 60), color=(255, 0, 0), font_size=22)
 
         # HUD
-        hud = f"Sleepy: {sleepy_count}"
+        hud = f"Model: {self.model_version} | Sleepy: {sleepy_count}"
         vis = draw_text_unicode(vis, hud, (12, 10), color=(50, 255, 50), font_size=22)
         # Update stats label (right panel)
         self.stats_label.setText(
@@ -1256,72 +1310,10 @@ class SleepyWindow(QMainWindow):
         )
         return vis
 
-    def toggle_fullscreen(self):
-        if self.isFullScreen():
-            self.showMaximized()
-        else:
-            self.showFullScreen()
-
-    # Recording helpers
-    def _ensure_writer(self, frame: np.ndarray):
-        if not self.record_enabled:
-            return
-        if self.writer is not None:
-            return
-        if not self.save_path:
-            return
-        h, w = frame.shape[:2]
-        self.last_frame_size = (w, h)
-        fourcc = 0
-        try:
-            fourcc_fn = getattr(cv2, "VideoWriter_fourcc", None)
-            if callable(fourcc_fn):
-                fourcc = int(fourcc_fn(*"mp4v"))  # type: ignore[arg-type]
-        except Exception:
-            fourcc = 0
-        fps = 25.0
-        self.writer = cv2.VideoWriter(self.save_path, fourcc, fps, (w, h))
-
-    def _write_frame(self, frame: np.ndarray):
-        try:
-            self._ensure_writer(frame)
-            if self.writer is not None and self.last_frame_size == (frame.shape[1], frame.shape[0]):
-                self.writer.write(frame)
-        except Exception:
-            pass
-
-    def _release_writer(self):
-        if self.writer is not None:
-            try:
-                self.writer.release()
-            except Exception:
-                pass
-        self.writer = None
-
-    # Snapshot
-    def on_snapshot(self):
-        if self.video_label.pixmap() is None:
-            self.append_log("Chưa có khung hình để chụp.")
-            return
-        ts = time.strftime("%Y%m%d_%H%M%S")
-        path = f"snapshot_{ts}.png"
-        # Grab current frame by re-rendering latest capture if available
-        if self.cap is not None:
-            ok, frame = self.cap.read()
-            if ok and frame is not None:
-                vis = self.process_frame_once(frame)
-                cv2.imwrite(path, vis)
-                self.append_log(f"Đã lưu ảnh: {path}")
-                return
-        # Fallback: try to save from displayed pixmap
-        pm = self.video_label.pixmap()
-        if pm is not None:
-            pm.save(path)
-            self.append_log(f"Đã lưu ảnh: {path}")
-
 
 def launch_gui(args: argparse.Namespace):
-    app = QApplication([])
-    win = SleepyWindow(args)
-    win.showMaximized()
+    import sys
+    app = QApplication.instance() or QApplication(sys.argv)
+    w = SleepyWindow(args)
+    w.showMaximized()
     app.exec_()

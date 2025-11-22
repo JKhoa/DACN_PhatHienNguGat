@@ -26,11 +26,6 @@ dist/
 **/runs/
 **/labels.cache
 
-# YOLO model weights (*.pt files are large, should not be in git)
-*.pt
-!yolo11n-pose.pt
-# Keep small default model but exclude all trained models
-
 # Datasets (keep YAML, ignore large train/val image directories)
 yolo-sleepy-allinone-final/datasets/sleepy_pose/train/
 yolo-sleepy-allinone-final/datasets/sleepy_pose/val/
@@ -40,11 +35,3 @@ yolo-sleepy-allinone-final/datasets/sleepy_pose/val/
 
 # Logs
 *.log
-
-# Embedded git repositories
-yolov5/
-
-# Auto-collected data directories (keep structure, ignore content)
-auto_collected_data/
-auto_videos/
-auto_video_frames/

@@ -27,7 +27,8 @@ import {
 import { cn } from './ui/utils';
 import { StudentTrackingDetails } from './StudentTrackingDetails';
 import { acquireWebcam, releaseWebcam, mapGetUserMediaError, forceReleaseAllWebcams, getAvailableCameras, requestCameraPermission, testCameraAccess } from '../lib/webcamRegistry';
-import { DetectionWSClient, DetectionResult as WSDetectionResult } from '../lib/wsDetection';
+import { DetectionWSClient } from '../lib/wsDetection';
+import { DetectionResult, Person } from '../types/detection';
 import { wsCamera } from '../lib/wsCamera';
 
 interface CameraCardProps {
@@ -75,6 +76,8 @@ export function CameraCard({
   // Keep WS detection results locally so we can draw overlays even if parent doesn't wire onUpdateStudents
   const [wsStudents, setWsStudents] = useState<any[]>([]);
   const [wsFps, setWsFps] = useState<number>(0);
+  // Last processing time from backend (ms)
+  const [wsProcMs, setWsProcMs] = useState<number | null>(null);
   // Last detection frame dimensions from WS (used for correct overlay scaling)
   const [wsFrameDims, setWsFrameDims] = useState<{ w: number; h: number } | null>(null);
   // UI-adjustable detection sensitivity (0-100). Higher = more sensitive (lower YOLO conf)
@@ -133,24 +136,47 @@ export function CameraCard({
     let mounted = true;
 
     const start = async () => {
+      console.log(`[CameraCard ${camera.id}] Setup video stream - isRunning:${camera.isRunning}, status:${camera.status}, type:${camera.type}`);
       setLocalError(null);
       if (!(camera.isRunning && camera.status === 'online')) {
+        console.log(`[CameraCard ${camera.id}] ⏸️ Skipping video setup - camera not ready`);
         return;
       }
 
       if (camera.type === 'webcam') {
         try {
-          const { stream, streamKey: k } = await acquireWebcam({
+          console.log(`[CameraCard ${camera.id}] Acquiring webcam with deviceId:`, camera.deviceId);
+          const { stream, streamKey: k, actualDeviceId } = await acquireWebcam({
             deviceId: camera.deviceId,
             width: 640,
             height: 480,
           });
+          console.log(`[CameraCard ${camera.id}] ✅ Webcam acquired successfully, streamKey:`, k);
+          console.log(`[CameraCard ${camera.id}] Requested deviceId: ${camera.deviceId}, Actual deviceId: ${actualDeviceId}`);
+          
+          // Check for mismatch between requested and actual camera
+          if (camera.deviceId !== undefined && actualDeviceId && String(camera.deviceId) !== actualDeviceId) {
+            const errorMsg = `⚠️ Camera mismatch! Requested: ${camera.deviceId}, Got: ${actualDeviceId}`;
+            console.error(`[CameraCard ${camera.id}] ${errorMsg}`);
+            setLocalError(errorMsg);
+            // Release the wrong camera
+            releaseWebcam(k);
+            return;
+          }
+          
+          console.log(`[CameraCard ${camera.id}] Stream tracks:`, stream.getTracks().map(t => `${t.kind} (${t.readyState})`));
           if (!mounted) return;
           setStreamKey(k);
           setVideoStream(stream);
           if (videoRef.current) {
+            console.log(`[CameraCard ${camera.id}] Setting srcObject on video element`);
             videoRef.current.srcObject = stream;
-            try { await videoRef.current.play(); } catch {}
+            try { 
+              await videoRef.current.play();
+              console.log(`[CameraCard ${camera.id}] ✅ Video playing`);
+            } catch (playErr) {
+              console.error(`[CameraCard ${camera.id}] Video play failed:`, playErr);
+            }
           }
 
           // Adjust canvas size to video dimensions when ready
@@ -167,15 +193,36 @@ export function CameraCard({
           if (!wsClientRef.current) {
             const client = new DetectionWSClient();
             wsClientRef.current = client;
-            client.connect((msg: WSDetectionResult) => {
-              wsConnectedRef.current = !!msg;
+            
+            // Monitor connection status
+            client.onStatusChange((connected) => {
+              console.log(`[CameraCard ${camera.id}] WS connection status:`, connected ? '✅ Connected' : '❌ Disconnected');
+            });
+            
+            client.connect((msg: DetectionResult) => {
+              // Set connection status to true when we receive any message
+              wsConnectedRef.current = true;
+              
+              // DEBUG: Log raw message
+              console.log(`[CameraCard ${camera.id}] 🔍 WS Result:`, {
+                success: msg?.success,
+                personsCount: Array.isArray(msg?.persons) ? msg.persons.length : 0,
+                fps: msg?.fps,
+                rawMsg: msg
+              });
+              
               try {
-                if (!msg || !msg.success) return;
+                if (!msg || !msg.success) {
+                  console.warn(`[CameraCard ${camera.id}] ⚠️ WS result not success or empty`);
+                  return;
+                }
                 const persons = Array.isArray(msg.persons) ? msg.persons : [];
                 const backendFps = typeof msg.fps === 'number' ? msg.fps : 0;
+                  const proc = typeof (msg as any).processing_time === 'number' ? (msg as any).processing_time : undefined;
                 const fw = typeof (msg as any).frame_width === 'number' ? (msg as any).frame_width : undefined;
                 const fh = typeof (msg as any).frame_height === 'number' ? (msg as any).frame_height : undefined;
                 if (fw && fh) setWsFrameDims({ w: fw, h: fh });
+                  if (typeof proc === 'number') setWsProcMs(Math.max(0, Math.round(proc * 1000)));
                 // Deduplicate by track_id/id within a frame
                 const seen = new Set<string>();
                 const students = persons.map((p: any, idx: number) => {
@@ -197,8 +244,13 @@ export function CameraCard({
                     lastUpdate: new Date(),
                     bbox: p.bbox,
                     headBbox: head,
+                    keypoints: p.keypoints || [], // ADD KEYPOINTS HERE
                   };
                 }).filter(Boolean) as any[];
+                
+                // DEBUG: Log processed students
+                console.log(`[CameraCard ${camera.id}] 📦 Processed students:`, students.length, students);
+                
                 // Store locally for overlay drawing immediately
                 setWsStudents(students);
                 setWsFps(Math.round(backendFps));
@@ -251,10 +303,18 @@ export function CameraCard({
                 // Convert to base64 and send via WebSocket (low-latency)
                 const frameBase64 = tempCanvas.toDataURL('image/jpeg', 0.6);
                 const ws = wsClientRef.current as DetectionWSClient | null;
-                if (ws && wsConnectedRef.current) {
+                if (ws) {
+                  // Send frame even if not yet received response - backend will process and respond
                   ws.sendFrame(frameBase64, camera.id);
+                  
+                  // Debug log frame sending (throttled)
+                  (window as any).__lastFrameSendLog = (window as any).__lastFrameSendLog || 0;
+                  if (Date.now() - (window as any).__lastFrameSendLog > 2000) {
+                    console.log(`[CameraCard ${camera.id}] ✅ Sending frame ${tempCanvas.width}x${tempCanvas.height} via WS`);
+                    (window as any).__lastFrameSendLog = Date.now();
+                  }
                 } else {
-                  // WS chưa sẵn sàng: bỏ qua frame này (chỉ dùng WebSocket theo yêu cầu)
+                  console.warn(`[CameraCard ${camera.id}] ⚠️ WebSocket client not initialized`);
                 }
               }
             } catch (error) {
@@ -287,9 +347,11 @@ export function CameraCard({
           try {
             const persons = Array.isArray(msg.persons) ? msg.persons : [];
             const backendFps = typeof msg.fps === 'number' ? msg.fps : 0;
+            const proc = typeof (msg as any).processing_time === 'number' ? (msg as any).processing_time : undefined;
             if (typeof msg.frame_width === 'number' && typeof msg.frame_height === 'number') {
               setWsFrameDims({ w: msg.frame_width, h: msg.frame_height });
             }
+            if (typeof proc === 'number') setWsProcMs(Math.max(0, Math.round(proc * 1000)));
             // Debug: confirm WS updates arriving
             if ((window as any).__lastWsCamLogTs === undefined || Date.now() - (window as any).__lastWsCamLogTs > 2000) {
               console.log(`[WS-CAM ${camera.id}] update: persons=${persons.length}, dims=${msg.frame_width}x${msg.frame_height}, fps=${backendFps}`);
@@ -537,8 +599,9 @@ export function CameraCard({
   const drawOverlays = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
     // Vẽ tracking box từ kết quả WebSocket với 2 màu: xanh (awake) và đỏ (drowsy)
     // Ưu tiên WS; nếu chưa có, hiển thị hướng dẫn chờ WS.
-    const wsHasData = wsStudents.length > 0;
-    const trackingBoxes = wsHasData
+    const wsConnected = wsConnectedRef.current; // Check actual WS connection status
+    const wsHasDetections = wsStudents.length > 0;
+    const trackingBoxes = wsHasDetections
       ? wsStudents.map((student: any) => ({
           id: student.id,
           x: student.position?.x || 0,
@@ -557,31 +620,44 @@ export function CameraCard({
       if (trackingBoxes.length > 0) {
         console.log(`[CameraCard ${camera.id}] ✅ Drawing ${trackingBoxes.length} boxes (ws:${wsStudents.length}, backend:${camera.students.length}, demo:${localTrackingData.length}) on ${canvas.width}x${canvas.height}`);
       } else if (camera.isRunning && camera.status === 'online') {
-        console.log(`[CameraCard ${camera.id}] ⚠️ No tracking boxes to draw`);
+        console.log(`[CameraCard ${camera.id}] ⚠️ No tracking boxes to draw (wsConnected:${wsConnected}, wsDetections:${wsHasDetections})`);
       }
       (window as any).__lastOverlayLog = nowTs;
     }
     
     if (trackingBoxes.length === 0) {
-      // Không có dữ liệu WS: hiển thị nhắc chờ kết nối/detections
+      // Show status overlay based on connection state
       ctx.strokeStyle = '#ff1744';
       ctx.lineWidth = 2;
-      ctx.strokeRect(10, 10, 250, 50);
+      ctx.strokeRect(10, 10, 280, 50);
       ctx.fillStyle = '#ff1744';
       ctx.font = 'bold 14px Arial';
-      ctx.fillText('Đang chờ WS/detections...', 15, 35);
+      if (!wsConnected) {
+        ctx.fillText('Đang kết nối WebSocket...', 15, 35);
+      } else {
+        ctx.fillText('Không phát hiện người trong khung hình', 15, 35);
+      }
       ctx.font = '12px Arial';
       ctx.fillText(`Camera: ${camera.id}`, 15, 50);
       
-      // Show debug info
+      // Show debug info with better status indication
       ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      ctx.fillRect(10, canvas.height - 50, 250, 45);
-      ctx.fillStyle = wsHasData ? '#22c55e' : '#ef4444';
+      ctx.fillRect(10, canvas.height - 50, 280, 45);
       ctx.font = '12px Arial';
-      ctx.fillText(`WS: ${wsHasData ? 'ĐANG NHẬN' : 'CHƯA CÓ'}`, 15, canvas.height - 35);
+      
+      // WS Connection status
+      if (wsConnected) {
+        ctx.fillStyle = '#22c55e';
+        ctx.fillText('WS: ✓ Kết nối', 15, canvas.height - 35);
+      } else {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillText('WS: ✗ Chưa kết nối', 15, canvas.height - 35);
+      }
+      
+      // Detection status
       ctx.fillStyle = '#fff';
-      ctx.fillText(`FPS: ${wsFps || camera.fps}`, 15, canvas.height - 20);
-      ctx.fillText(`Chế độ: WebSocket`, 15, canvas.height - 8);
+      ctx.fillText(`Detections: ${wsHasDetections ? wsStudents.length : '0 (chưa thấy người)'}`, 15, canvas.height - 20);
+      ctx.fillText(`FPS: ${wsFps || camera.fps} | WebSocket`, 15, canvas.height - 8);
       return;
     }
     
@@ -737,19 +813,67 @@ export function CameraCard({
       ctx.fillText(stateText, x, y + labelHeight + padding + centerRadius + 5);
       
       ctx.textAlign = 'left';
+      
+      // Draw keypoints and skeleton if available
+      const student = wsStudents.find((s: any) => s.id === box.id);
+      if (student && student.keypoints && Array.isArray(student.keypoints) && student.keypoints.length >= 17) {
+        const kpts = student.keypoints;
+        
+        // COCO skeleton connections (pose)
+        const skeleton = [
+          [0, 1], [0, 2], [1, 3], [2, 4], // head
+          [5, 6], [5, 7], [7, 9], [6, 8], [8, 10], // arms
+          [5, 11], [6, 12], [11, 12], // torso
+          [11, 13], [13, 15], [12, 14], [14, 16] // legs
+        ];
+        
+        // Draw skeleton lines
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(2, canvas.width / 320);
+        skeleton.forEach(([i, j]) => {
+          if (i < kpts.length && j < kpts.length) {
+            const pt1 = kpts[i];
+            const pt2 = kpts[j];
+            if (pt1.visible && pt2.visible && pt1.confidence > 0.3 && pt2.confidence > 0.3) {
+              ctx.beginPath();
+              ctx.moveTo(pt1.x * scaleX, pt1.y * scaleY);
+              ctx.lineTo(pt2.x * scaleX, pt2.y * scaleY);
+              ctx.stroke();
+            }
+          }
+        });
+        
+        // Draw keypoints
+        kpts.forEach((kpt: any, idx: number) => {
+          if (kpt.visible && kpt.confidence > 0.3) {
+            const kx = kpt.x * scaleX;
+            const ky = kpt.y * scaleY;
+            const radius = Math.max(3, canvas.width / 200);
+            
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(kx, ky, radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        });
+      }
     });
 
     // Performance HUD
       if (showPerformance) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(5, 5, 120, 80);
+        ctx.fillRect(5, 5, 140, 80);
         ctx.fillStyle = '#fff';
         ctx.font = '11px monospace';
         ctx.fillText(`FPS: ${wsFps || camera.fps}`, 10, 20);
-        ctx.fillText(`Students: ${camera.students.length}`, 10, 35);
+        ctx.fillText(`Students: ${wsStudents.length || camera.students.length}`, 10, 35);
         ctx.fillText(`Sleepy: ${camera.sleepyStudents}`, 10, 50);
-        ctx.fillText(`Latency: ${Math.floor(Math.random() * 50 + 20)}ms`, 10, 65);
-        ctx.fillText(`Conf: ${(camera.students.reduce((sum, s) => sum + s.confidence, 0) / camera.students.length || 0).toFixed(2)}`, 10, 80);
+        ctx.fillText(`Proc: ${wsProcMs != null ? wsProcMs : '-'}ms`, 10, 65);
+        ctx.fillText(`Conf: ${(wsStudents.reduce((sum, s) => sum + (s.confidence || 0), 0) / (wsStudents.length || camera.students.length || 1) || 0).toFixed(2)}`, 10, 80);
       }
       
       // Camera info overlay
@@ -895,7 +1019,7 @@ export function CameraCard({
       </div>
 
       {/* Video Feed */}
-      <div className="relative aspect-video bg-black">
+      <div className="relative aspect-video bg-gray-800">
         {/* Base media: video for webcam, img for IP */}
         {camera.isRunning && camera.status === 'online' ? (
           <div className="relative w-full h-full">
@@ -905,7 +1029,15 @@ export function CameraCard({
                 autoPlay
                 playsInline
                 muted
-                className="absolute top-0 left-0 w-full h-full object-cover z-0"
+                className="absolute top-0 left-0 w-full h-full object-cover z-0 bg-blue-900"
+                onLoadedMetadata={(e) => {
+                  console.log(`[CameraCard ${camera.id}] ✅ Video metadata loaded:`, videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight);
+                  console.log(`[CameraCard ${camera.id}] Video srcObject:`, videoRef.current?.srcObject);
+                  console.log(`[CameraCard ${camera.id}] Video readyState:`, videoRef.current?.readyState);
+                }}
+                onPlay={() => console.log(`[CameraCard ${camera.id}] ✅ Video playing`)}
+                onError={(e) => console.error(`[CameraCard ${camera.id}] ❌ Video error:`, e)}
+                onLoadStart={() => console.log(`[CameraCard ${camera.id}] Video load start`)}
               />
             ) : (
               <img
@@ -919,7 +1051,7 @@ export function CameraCard({
             {/* Canvas overlay for tracking visualizations - EXACTLY overlay video */}
             <canvas
               ref={canvasRef}
-              className="absolute top-0 left-0 w-full h-full pointer-events-none z-10"
+              className="absolute top-0 left-0 w-full h-full pointer-events-none z-10 border-2 border-red-500 bg-green-900/20"
             />
 
             {/* Error overlay if webcam failed */}

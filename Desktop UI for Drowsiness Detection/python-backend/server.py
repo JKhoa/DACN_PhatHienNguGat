@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from flask import Flask, request, jsonify, Response, make_response
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit, join_room, leave_room
 
 # Import YOLO detector
 try:
@@ -21,6 +22,17 @@ except ImportError as e:
 app = Flask(__name__)
 CORS(app)
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+# Initialize SocketIO for WebSocket support
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='threading',
+    logger=False,
+    engineio_logger=False,
+    ping_timeout=60,
+    ping_interval=25
+)
 
 
 class CameraWorker(threading.Thread):
@@ -162,6 +174,50 @@ class CameraWorker(threading.Thread):
 
     def stop(self):
         self._running.clear()
+    
+    def emit_ws_update(self):
+        """Emit WebSocket update for this camera (called by background thread)"""
+        try:
+            with self._lock:
+                result = self._last_detection_result
+                frame_width = self._frame_width
+                frame_height = self._frame_height
+                fps = self._current_fps
+            
+            if result is None:
+                return
+            
+            # Convert persons to JSON
+            persons_payload = []
+            if hasattr(result, 'persons'):
+                for p in result.persons:
+                    kpts = [{'x': float(k.x), 'y': float(k.y), 'confidence': float(k.confidence), 'visible': bool(k.visible)} for k in p.keypoints]
+                    persons_payload.append({
+                        'id': int(p.id),
+                        'track_id': int(getattr(p, 'track_id', p.id)),
+                        'bbox': [float(v) for v in p.bbox],
+                        'head_bbox': [float(v) for v in getattr(p, 'head_bbox', [])] if getattr(p, 'head_bbox', None) else None,
+                        'confidence': float(p.confidence),
+                        'keypoints': kpts,
+                        'drowsiness_score': float(p.drowsiness_score),
+                        'drowsiness_state': str(p.drowsiness_state),
+                        'last_update': float(p.last_update)
+                    })
+            
+            # Emit to WebSocket room
+            socketio.emit('update', {
+                'success': True,
+                'camera_id': self.cam_id,
+                'frame_width': int(frame_width),
+                'frame_height': int(frame_height),
+                'fps': float(fps),
+                'processing_time': float(getattr(result, 'processing_time', 0.0)),
+                'persons': persons_payload,
+                'timestamp': time.time()
+            }, namespace='/ws/camera', to=f'cam:{self.cam_id}')
+            
+        except Exception as e:
+            app.logger.error(f"[{self.cam_id}] WS emit error: {e}")
 
     def get_last_jpeg(self, annotated: bool = False) -> Optional[bytes]:
         with self._lock:
@@ -202,6 +258,42 @@ class CameraManager:
         self._workers: Dict[str, CameraWorker] = {}
         self._meta: Dict[str, Dict] = {}
         self._lock = threading.Lock()
+        self._ws_broadcaster_running = False
+        self._ws_broadcaster_thread = None
+    
+    def start_ws_broadcaster(self):
+        """Start background thread to emit WebSocket updates for all IP cameras"""
+        if self._ws_broadcaster_running:
+            return
+        
+        self._ws_broadcaster_running = True
+        
+        def broadcast_loop():
+            app.logger.info("🔄 WebSocket broadcaster thread started")
+            while self._ws_broadcaster_running:
+                try:
+                    with self._lock:
+                        workers_snapshot = list(self._workers.items())
+                    
+                    for cam_id, worker in workers_snapshot:
+                        if worker.is_alive():
+                            worker.emit_ws_update()
+                    
+                    time.sleep(0.15)  # Emit at ~6-7 Hz
+                except Exception as e:
+                    app.logger.error(f"WS broadcaster error: {e}")
+                    time.sleep(1.0)
+            
+            app.logger.info("🛑 WebSocket broadcaster thread stopped")
+        
+        self._ws_broadcaster_thread = threading.Thread(target=broadcast_loop, daemon=True)
+        self._ws_broadcaster_thread.start()
+    
+    def stop_ws_broadcaster(self):
+        """Stop the WebSocket broadcaster thread"""
+        self._ws_broadcaster_running = False
+        if self._ws_broadcaster_thread:
+            self._ws_broadcaster_thread.join(timeout=2.0)
 
     def list(self):
         with self._lock:
@@ -228,13 +320,13 @@ class CameraManager:
         with self._lock:
             if cam_id in self._workers:
                 try:
-                self._workers[cam_id].stop()
+                    self._workers[cam_id].stop()
                     app.logger.info(f"[{cam_id}] Worker stopped")
                 except Exception as e:
                     app.logger.warning(f"[{cam_id}] Error stopping worker: {e}")
             self._workers.pop(cam_id, None)
             if cam_id in self._meta:
-            self._meta.pop(cam_id, None)
+                self._meta.pop(cam_id, None)
                 app.logger.info(f"[{cam_id}] Camera metadata removed")
 
     def start(self, cam_id: str, enable_detection: bool = True):
@@ -662,6 +754,187 @@ def initialize_detection():
         return jsonify({'success': False, 'error': 'Failed to initialize detector'}), 500
 
 
+# ==================== WebSocket Handlers ====================
+
+@socketio.on('connect', namespace='/ws/detect')
+def ws_detect_connect():
+    app.logger.info('✅ WS client connected to /ws/detect')
+    emit('hello', {'msg': 'connected to /ws/detect'})
+
+
+@socketio.on('disconnect', namespace='/ws/detect')
+def ws_detect_disconnect():
+    app.logger.info('❌ WS client disconnected from /ws/detect')
+
+
+@socketio.on('frame', namespace='/ws/detect')
+def ws_detect_frame(data):
+    """Receive webcam frame, run YOLO detection, emit result immediately"""
+    try:
+        if not YOLO_AVAILABLE:
+            emit('result', {'success': False, 'error': 'YOLO not available'})
+            return
+        
+        # Ensure detector is initialized
+        if get_detector() is None:
+            app.logger.warning("Detector not initialized, initializing...")
+            initialize_detector('yolo11n-pose.pt')
+        
+        # Extract frame data
+        frame_b64 = data.get('frame') if isinstance(data, dict) else None
+        cam_id = data.get('camera_id', 'webcam') if isinstance(data, dict) else 'webcam'
+        
+        if not frame_b64:
+            emit('result', {'success': False, 'error': 'frame required'})
+            return
+        
+        # Decode base64 frame
+        if ',' in frame_b64:
+            frame_b64 = frame_b64.split(',')[1]
+        
+        frame_bytes = base64.b64decode(frame_b64)
+        arr = np.frombuffer(frame_bytes, dtype=np.uint8)
+        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        
+        if frame is None:
+            emit('result', {'success': False, 'error': 'decode failed'})
+            return
+        
+        h, w = frame.shape[:2]
+        
+        # Run YOLO detection
+        det = detect_frame(frame)
+        
+        # Convert DetectionResult to JSON-serializable format
+        persons_data = []
+        for person in det.persons:
+            keypoints_data = [{
+                'x': float(kpt.x),
+                'y': float(kpt.y),
+                'confidence': float(kpt.confidence),
+                'visible': bool(kpt.visible)
+            } for kpt in person.keypoints]
+            
+            persons_data.append({
+                'id': int(person.id),
+                'track_id': int(getattr(person, 'track_id', person.id)),
+                'bbox': [float(v) for v in person.bbox],
+                'head_bbox': [float(v) for v in getattr(person, 'head_bbox', [])] if getattr(person, 'head_bbox', None) else None,
+                'confidence': float(person.confidence),
+                'keypoints': keypoints_data,
+                'drowsiness_score': float(person.drowsiness_score),
+                'drowsiness_state': str(person.drowsiness_state),
+                'last_update': float(person.last_update)
+            })
+        
+        # Emit result back to client
+        emit('result', {
+            'success': True,
+            'frame_id': int(det.frame_id),
+            'frame_width': int(w),
+            'frame_height': int(h),
+            'fps': float(getattr(det, 'fps', 0.0)),
+            'processing_time': float(det.processing_time),
+            'persons': persons_data,
+            'timestamp': float(det.timestamp)
+        })
+        
+        app.logger.info(f"📤 [WS /ws/detect] Emitted result: {len(persons_data)} persons detected")
+        
+    except Exception as e:
+        app.logger.error(f"❌ [WS /ws/detect] Error processing frame: {e}")
+        emit('result', {'success': False, 'error': str(e)})
+
+
+@socketio.on('connect', namespace='/ws/camera')
+def ws_camera_connect():
+    app.logger.info('✅ WS client connected to /ws/camera')
+    emit('hello', {'msg': 'connected to /ws/camera'})
+
+
+@socketio.on('disconnect', namespace='/ws/camera')
+def ws_camera_disconnect():
+    app.logger.info('❌ WS client disconnected from /ws/camera')
+
+
+@socketio.on('subscribe', namespace='/ws/camera')
+def ws_camera_subscribe(data):
+    """Subscribe to IP camera updates"""
+    try:
+        cam_id = (data or {}).get('camera_id')
+        if not cam_id:
+            emit('error', {'success': False, 'error': 'camera_id required'})
+            return
+        
+        join_room(f'cam:{cam_id}')
+        app.logger.info(f"📡 [WS /ws/camera] Subscribed to room cam:{cam_id}")
+        emit('subscribed', {'success': True, 'camera_id': cam_id})
+        
+        # Send immediate snapshot if camera exists
+        if manager.has_camera(cam_id):
+            worker = manager.get_worker(cam_id)
+            result = manager.get_detection_result(cam_id)
+            frame_width, frame_height = manager.get_frame_dimensions(cam_id) or (640, 360)
+            fps = worker.get_fps() if worker else 0.0
+            
+            persons_payload = []
+            if result and hasattr(result, 'persons'):
+                for p in result.persons:
+                    kpts = [{
+                        'x': float(k.x),
+                        'y': float(k.y),
+                        'confidence': float(k.confidence),
+                        'visible': bool(k.visible)
+                    } for k in p.keypoints]
+                    
+                    persons_payload.append({
+                        'id': int(p.id),
+                        'track_id': int(getattr(p, 'track_id', p.id)),
+                        'bbox': [float(v) for v in p.bbox],
+                        'head_bbox': [float(v) for v in getattr(p, 'head_bbox', [])] if getattr(p, 'head_bbox', None) else None,
+                        'confidence': float(p.confidence),
+                        'keypoints': kpts,
+                        'drowsiness_score': float(p.drowsiness_score),
+                        'drowsiness_state': str(p.drowsiness_state),
+                        'last_update': float(p.last_update)
+                    })
+            
+            socketio.emit('update', {
+                'success': True,
+                'camera_id': cam_id,
+                'frame_width': int(frame_width),
+                'frame_height': int(frame_height),
+                'fps': float(fps),
+                'processing_time': float(getattr(result, 'processing_time', 0.0) if result else 0.0),
+                'persons': persons_payload,
+                'timestamp': time.time()
+            }, namespace='/ws/camera', to=f'cam:{cam_id}')
+            
+            app.logger.info(f"📤 [WS /ws/camera] Sent snapshot to cam:{cam_id}: {len(persons_payload)} persons")
+        
+    except Exception as e:
+        app.logger.error(f"❌ [WS /ws/camera] Subscribe error: {e}")
+        emit('error', {'success': False, 'error': str(e)})
+
+
+@socketio.on('unsubscribe', namespace='/ws/camera')
+def ws_camera_unsubscribe(data):
+    """Unsubscribe from IP camera updates"""
+    try:
+        cam_id = (data or {}).get('camera_id')
+        if not cam_id:
+            emit('error', {'success': False, 'error': 'camera_id required'})
+            return
+        
+        leave_room(f'cam:{cam_id}')
+        app.logger.info(f"📡 [WS /ws/camera] Unsubscribed from room cam:{cam_id}")
+        emit('unsubscribed', {'success': True, 'camera_id': cam_id})
+        
+    except Exception as e:
+        app.logger.error(f"❌ [WS /ws/camera] Unsubscribe error: {e}")
+        emit('error', {'success': False, 'error': str(e)})
+
+
 if __name__ == '__main__':
     # Initialize YOLO detector on startup
     if YOLO_AVAILABLE:
@@ -674,5 +947,13 @@ if __name__ == '__main__':
     else:
         print("⚠️ YOLO not available - detection features disabled")
     
-    # Bind to localhost only; Electron opens from file://
-    app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)
+    # Start WebSocket broadcaster for IP cameras
+    print("📡 Starting WebSocket broadcaster thread...")
+    manager.start_ws_broadcaster()
+    
+    # Start Flask-SocketIO server (supports both HTTP and WebSocket)
+    print("🚀 Starting Flask+SocketIO server on http://127.0.0.1:5000")
+    print("   - HTTP REST API: /api/*")
+    print("   - WebSocket /ws/detect: Webcam detection")
+    print("   - WebSocket /ws/camera: IP camera streaming")
+    socketio.run(app, host='127.0.0.1', port=5000, debug=False, allow_unsafe_werkzeug=True)

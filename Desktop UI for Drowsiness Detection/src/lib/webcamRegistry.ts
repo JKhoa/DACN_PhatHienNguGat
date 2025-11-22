@@ -14,17 +14,35 @@ function keyFor(dev?: number | string) {
 async function tryGetUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream> {
   // Some browsers require https except for localhost
   try {
-    // Request permission first
-    const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-    console.log('Camera permission status:', permission.state);
+    // Skip permission check in Electron (auto-granted by main.js)
+    const isElectron = navigator.userAgent.includes('Electron');
+    console.log('[webcamRegistry] tryGetUserMedia - isElectron:', isElectron);
+    console.log('[webcamRegistry] constraints:', JSON.stringify(constraints, null, 2));
     
-    if (permission.state === 'denied') {
-      throw new Error('Camera permission denied by user');
+    if (!isElectron) {
+      // Request permission first in browser
+      try {
+        const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        console.log('Camera permission status:', permission.state);
+        
+        if (permission.state === 'denied') {
+          throw new Error('Camera permission denied by user');
+        }
+      } catch (permError) {
+        console.warn('Permission query not supported, proceeding anyway:', permError);
+      }
+    } else {
+      console.log('[webcamRegistry] Running in Electron, skipping permission check');
     }
     
-    return await navigator.mediaDevices.getUserMedia(constraints);
+    console.log('[webcamRegistry] Calling getUserMedia...');
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    console.log('[webcamRegistry] ✅ getUserMedia SUCCESS, tracks:', stream.getTracks().map(t => `${t.kind}:${t.label} (${t.readyState})`));
+    return stream;
   } catch (error) {
-    console.error('getUserMedia failed:', error);
+    console.error('[webcamRegistry] ❌ getUserMedia FAILED:', error);
+    console.error('[webcamRegistry] Error name:', (error as any)?.name);
+    console.error('[webcamRegistry] Error message:', (error as any)?.message);
     throw error;
   }
 }
@@ -38,41 +56,84 @@ export function mapGetUserMediaError(err: any): string {
   return err?.message || 'Không thể truy cập webcam.';
 }
 
-export async function acquireWebcam(opts: AcquireOpts): Promise<{ stream: MediaStream; streamKey: string }> {
+export async function acquireWebcam(opts: AcquireOpts): Promise<{ stream: MediaStream; streamKey: string; actualDeviceId?: string }> {
   const k = keyFor(opts.deviceId);
   const cached = registry.get(k);
   if (cached) {
     cached.refCount += 1;
-    return { stream: cached.stream, streamKey: k };
+    // Return the actual device ID from the stream's video track
+    const videoTrack = cached.stream.getVideoTracks()[0];
+    const actualDeviceId = videoTrack?.getSettings().deviceId;
+    return { stream: cached.stream, streamKey: k, actualDeviceId };
   }
 
-  // Try a sequence of constraints with graceful fallbacks
-  const attempts: MediaStreamConstraints[] = [];
-  
-  // 1) exact deviceId if provided
+  // Try ONLY the exact deviceId if provided - no fallback to other cameras
   if (opts.deviceId !== undefined) {
+    const attempts: MediaStreamConstraints[] = [];
+    
+    // 1) exact deviceId with ideal dimensions
     attempts.push({ video: {
       deviceId: { exact: String(opts.deviceId) },
       width: { ideal: opts.width || 640 },
       height: { ideal: opts.height || 480 },
       frameRate: { ideal: 30, max: 30 },
     } });
+    
+    // 2) exact deviceId with permissive dimensions
+    attempts.push({ video: {
+      deviceId: { exact: String(opts.deviceId) },
+    } });
+    
+    // 3) exact deviceId with low-res fallback
+    attempts.push({ video: {
+      deviceId: { exact: String(opts.deviceId) },
+      width: { ideal: 320 },
+      height: { ideal: 240 },
+      frameRate: { ideal: 15, max: 15 },
+    } });
+
+    let lastErr: any;
+    for (const c of attempts) {
+      try {
+        const s = await tryGetUserMedia(c);
+        registry.set(k, { stream: s, refCount: 1 });
+        
+        // Get actual device ID from stream
+        const videoTrack = s.getVideoTracks()[0];
+        const actualDeviceId = videoTrack?.getSettings().deviceId;
+        
+        console.log(`✅ Acquired exact device ${opts.deviceId}, verified actualDeviceId: ${actualDeviceId}`);
+        return { stream: s, streamKey: k, actualDeviceId };
+      } catch (e: any) {
+        lastErr = e;
+        console.warn(`Webcam attempt failed for device ${opts.deviceId}:`, e);
+        // Add small delay between attempts
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    // If exact device failed, throw error - DO NOT try alternative cameras
+    console.error(`❌ Failed to acquire exact device ${opts.deviceId}, NOT falling back to alternatives`);
+    throw lastErr;
   }
   
-  // 2) same without deviceId (let browser choose)
+  // If no deviceId specified, let browser choose any camera
+  const attempts: MediaStreamConstraints[] = [];
+  
+  // 1) Ideal dimensions
   attempts.push({ video: { 
     width: { ideal: opts.width || 640 }, 
     height: { ideal: opts.height || 480 }, 
     frameRate: { ideal: 30, max: 30 } 
   } });
   
-  // 3) very permissive
+  // 2) Very permissive
   attempts.push({ video: true });
   
-  // 4) facingMode user (laptop webcams)
+  // 3) FacingMode user (laptop webcams)
   attempts.push({ video: { facingMode: 'user' } as any });
   
-  // 5) low-res fallback to reduce hardware pressure
+  // 4) Low-res fallback
   attempts.push({ video: { 
     width: { ideal: 320 }, 
     height: { ideal: 240 }, 
@@ -84,55 +145,22 @@ export async function acquireWebcam(opts: AcquireOpts): Promise<{ stream: MediaS
     try {
       const s = await tryGetUserMedia(c);
       registry.set(k, { stream: s, refCount: 1 });
-      return { stream: s, streamKey: k };
+      
+      // Get actual device ID from stream
+      const videoTrack = s.getVideoTracks()[0];
+      const actualDeviceId = videoTrack?.getSettings().deviceId;
+      
+      console.log(`✅ Acquired default camera, actualDeviceId: ${actualDeviceId}`);
+      return { stream: s, streamKey: k, actualDeviceId };
     } catch (e: any) {
       lastErr = e;
       console.warn(`Webcam attempt failed:`, e);
-      // If it's "Device in use", try next attempt immediately
-      if (e && (e as any).name === 'NotReadableError') {
-        continue;
-      }
-      // For other errors, add a small delay
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
   
-  // If device is busy or unsuitable, try cycling through available cameras
-  try {
-    console.log('Trying alternative camera devices...');
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videos = devices.filter(d => d.kind === 'videoinput');
-    console.log(`Found ${videos.length} video devices:`, videos.map(d => ({ id: d.deviceId, label: d.label })));
-    
-    for (const d of videos) {
-      // Skip the requested one if specified
-      if (opts.deviceId && String(opts.deviceId) === d.deviceId) continue;
-      
-      try {
-        console.log(`Trying alternative device: ${d.deviceId}`);
-        const s = await tryGetUserMedia({
-          video: {
-            deviceId: { exact: d.deviceId },
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 30, max: 30 },
-          } as any,
-        });
-        const altKey = keyFor(d.deviceId);
-        registry.set(altKey, { stream: s, refCount: 1 });
-        console.log(`Successfully acquired alternative device: ${d.deviceId}`);
-        return { stream: s, streamKey: altKey };
-      } catch (altErr) {
-        console.warn(`Alternative device ${d.deviceId} failed:`, altErr);
-        // Continue to next device
-      }
-    }
-  } catch (enumErr) {
-    console.warn('Failed to enumerate devices:', enumErr);
-  }
-  
-  // If no real camera works, throw error instead of using mock camera
-  console.log('No real cameras available, refusing to use mock camera');
+  // If no camera works, throw error
+  console.log('❌ No cameras available');
   throw lastErr;
 }
 

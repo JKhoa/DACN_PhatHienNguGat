@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Camera, CameraConfig } from '../types';
 import { defaultCameraConfig, generateRTSPUrl } from '../lib/mockData';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { getAvailableCameras } from '../lib/webcamRegistry';
 
 interface CameraDialogProps {
   open: boolean;
@@ -36,7 +37,8 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
   const [cameraType, setCameraType] = useState<'webcam' | 'ip'>(camera?.type || 'ip');
   const [name, setName] = useState(camera?.name || '');
   const [totalStudents, setTotalStudents] = useState(camera?.totalStudents?.toString() || '30');
-  const [deviceId, setDeviceId] = useState(camera?.deviceId?.toString() || '0');
+  const [deviceId, setDeviceId] = useState(camera?.deviceId?.toString() || '');
+  const [availableCameras, setAvailableCameras] = useState<Array<{ deviceId: string; label: string }>>([]);
   const [brand, setBrand] = useState(camera?.brand || 'Hikvision');
   const [ip, setIp] = useState(camera?.ip || '');
   const [port, setPort] = useState(camera?.port?.toString() || '554');
@@ -46,6 +48,19 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
   const [config, setConfig] = useState<CameraConfig>(camera?.config || { ...defaultCameraConfig });
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [rtspUrl, setRtspUrl] = useState(camera?.rtspUrl || '');
+
+  // Load available cameras when dialog opens
+  useEffect(() => {
+    if (open && cameraType === 'webcam') {
+      getAvailableCameras().then(cameras => {
+        setAvailableCameras(cameras);
+        // Auto-select first camera if no deviceId set
+        if (!deviceId && cameras.length > 0) {
+          setDeviceId(cameras[0].deviceId);
+        }
+      });
+    }
+  }, [open, cameraType]);
 
   const handleTestConnection = () => {
     setTestStatus('testing');
@@ -83,7 +98,8 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
     };
 
     if (cameraType === 'webcam') {
-      cameraData.deviceId = parseInt(deviceId);
+      // Store deviceId as string (browser API returns string)
+      cameraData.deviceId = deviceId;
     } else {
       cameraData.brand = brand;
       cameraData.ip = ip;
@@ -164,13 +180,28 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
 
             {cameraType === 'webcam' ? (
               <div className="space-y-2">
-                <Label>Device ID</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={deviceId}
-                  onChange={(e) => setDeviceId(e.target.value)}
-                />
+                <Label>Chọn Camera</Label>
+                {availableCameras.length > 0 ? (
+                  <Select value={deviceId} onValueChange={setDeviceId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn camera..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableCameras.map((cam) => (
+                        <SelectItem key={cam.deviceId} value={cam.deviceId}>
+                          {cam.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Đang tải danh sách camera...
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Tìm thấy {availableCameras.length} camera. Chọn camera bạn muốn sử dụng.
+                </p>
               </div>
             ) : (
               <>
@@ -298,7 +329,7 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
                   </div>
                   <Switch
                     checked={config.decorators.reconnect}
-                    onCheckedChange={(v) => updateDecorator('reconnect', v)}
+                    onCheckedChange={(v: boolean) => updateDecorator('reconnect', v)}
                   />
                 </div>
               </div>
@@ -314,7 +345,7 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
                   </div>
                   <Switch
                     checked={config.decorators.frameQueue}
-                    onCheckedChange={(v) => updateDecorator('frameQueue', v)}
+                    onCheckedChange={(v: boolean) => updateDecorator('frameQueue', v)}
                   />
                 </div>
                 {config.decorators.frameQueue && (
@@ -340,7 +371,7 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
                   </div>
                   <Switch
                     checked={config.decorators.performance}
-                    onCheckedChange={(v) => updateDecorator('performance', v)}
+                    onCheckedChange={(v: boolean) => updateDecorator('performance', v)}
                   />
                 </div>
               </div>
@@ -356,14 +387,14 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
                   </div>
                   <Switch
                     checked={config.decorators.detection}
-                    onCheckedChange={(v) => updateDecorator('detection', v)}
+                    onCheckedChange={(v: boolean) => updateDecorator('detection', v)}
                   />
                 </div>
                 {config.decorators.detection && (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Model</Label>
-                      <Select value={config.model} onValueChange={(v) => setConfig(prev => ({ ...prev, model: v }))}>
+                      <Select value={config.model} onValueChange={(v: string) => setConfig(prev => ({ ...prev, model: v }))}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -415,7 +446,7 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
                   </div>
                   <Switch
                     checked={config.decorators.overlay}
-                    onCheckedChange={(v) => updateDecorator('overlay', v)}
+                    onCheckedChange={(v: boolean) => updateDecorator('overlay', v)}
                   />
                 </div>
               </div>
@@ -431,7 +462,7 @@ export function CameraDialog({ open, onClose, onSave, camera }: CameraDialogProp
                   </div>
                   <Switch
                     checked={config.decorators.logging}
-                    onCheckedChange={(v) => updateDecorator('logging', v)}
+                    onCheckedChange={(v: boolean) => updateDecorator('logging', v)}
                   />
                 </div>
               </div>

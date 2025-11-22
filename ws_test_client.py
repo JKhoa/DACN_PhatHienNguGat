@@ -23,7 +23,12 @@ def on_result(data):
     received['count'] += 1
     persons = data.get('persons') or []
     fps = data.get('fps')
-    print(f"[client] result {received['count']}: persons={len(persons)} fps={fps}")
+    schema = data.get('schema')
+    proc = data.get('processing_time')
+    print(f"[client] result {received['count']}: schema={schema} persons={len(persons)} fps={fps} proc_ms={int(proc*1000) if isinstance(proc,(int,float)) else '-'}")
+    # simple contract check
+    if schema != 'v1':
+        print('[client] WARNING: expected schema v1')
     # Stop after first result
     received['done'] = True
     sio.disconnect()
@@ -46,9 +51,9 @@ def main():
     sio.connect(url, namespaces=['/ws/detect'])
     print('[client] sending frame...')
     sio.emit('frame', {'frame': dataurl, 'camera_id': 'webcam'}, namespace='/ws/detect')
-    # Wait a bit
+    # Wait up to 30s to allow first-time model init
     t0 = time.time()
-    while not received['done'] and time.time() - t0 < 5:
+    while not received['done'] and time.time() - t0 < 30:
         time.sleep(0.1)
     if not received['done']:
         print('[client] timeout waiting for result')

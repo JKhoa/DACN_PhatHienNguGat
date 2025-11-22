@@ -22,7 +22,7 @@ export interface Camera {
   students: Student[];
   totalStudents: number;
   sleepyStudents: number;
-  deviceId?: number;
+  deviceId?: number | string; // Support both number and string for flexibility
   brand?: string;
   ip?: string;
   port?: number;

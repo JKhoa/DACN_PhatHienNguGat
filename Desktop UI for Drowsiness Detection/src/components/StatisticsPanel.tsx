@@ -165,11 +165,11 @@ export function StatisticsPanel({ cameras }: StatisticsPanelProps) {
       '',
       'Tổng quát',
       `Tổng buồn ngủ: ${statistics.totalDrowsy}`,
-      `Tổng gục xuống: ${statistics.totalSleeping}`,
+      `Tổng ngủ gật: ${statistics.totalSleeping}`,
       `Tổng tỉnh lại: ${statistics.totalWakeUps}`,
       '',
       'Theo phòng',
-      'Phòng,Đang ngủ gật,Buồn ngủ,Gục xuống,Tỉnh lại',
+      'Phòng,Đang ngủ gật,Buồn ngủ,Ngủ gật,Tỉnh lại',
       ...statistics.byCamera.map(cam => 
         `${cam.cameraName},${cam.currentDrowsy || 0},${cam.drowsy},${cam.sleeping},${cam.wakeUps}`
       ),
@@ -317,7 +317,7 @@ export function StatisticsPanel({ cameras }: StatisticsPanelProps) {
               <Card className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Gục xuống</p>
+                    <p className="text-sm text-muted-foreground">Ngủ gật</p>
                     <p className="text-2xl font-bold text-red-500">{statistics.totalSleeping}</p>
                   </div>
                   <Users className="h-8 w-8 text-red-500/50" />
