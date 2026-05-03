@@ -56,13 +56,13 @@ python standalone_app.py --video data_raw/cap_000000.jpg
 - Nếu thiếu PyQt5 hoặc chạy với `--cli`, app sẽ fallback về chế độ console.
 - Với tab multi-camera, cấu hình có thể save/load dạng YAML; `PyYAML` đã có sẵn trong requirements gốc.
 
-## Desktop UI Web (React/Vite) — phiên bản đang phát triển
+## Web UI (React/Vite + Python backend) — phiên bản hiện tại
 
-Dự án có một Desktop UI hiện đại, riêng biệt, viết bằng React + Vite, đặt tại:
+Dự án có một web UI hiện đại, viết bằng React + Vite, **chạy localhost**, đặt tại:
 
 - `Desktop UI for Drowsiness Detection/`
 
-Đây là phần độc lập với GUI PyQt5 và là **giao diện chính đang được phát triển**. Để chạy nhanh:
+Đây là **giao diện chính đang được phát triển** — chỉ chạy ở browser localhost, không còn dùng Electron. Để chạy nhanh:
 
 ```powershell
 # Cài Node.js nếu chưa có (https://nodejs.org)

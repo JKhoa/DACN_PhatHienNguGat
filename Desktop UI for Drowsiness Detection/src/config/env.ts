@@ -1,10 +1,10 @@
 /**
- * Environment configuration.
+ * Environment configuration — localhost only.
  *
- * After the IPC migration, all WebSocket and HTTP traffic is routed through
- * the main process (electron/wsBridge.js + electron/main.js). The renderer no
- * longer needs the localhost URLs — only the reconnection/health-check knobs
- * remain, and they are now consumed inside the bridge if needed.
+ * Frontend giao tiếp trực tiếp với Python backend (Flask + Socket.IO) qua
+ * REST + WebSocket. Backend URL mặc định http://127.0.0.1:5000, override
+ * bằng VITE_BACKEND_URL nếu cần. Các giá trị reconnect/health-check áp
+ * dụng cho socket.io client.
  */
 export const ENV = {
   WS_RECONNECTION_ATTEMPTS: import.meta.env.VITE_WS_RECONNECTION_ATTEMPTS === 'Infinity'

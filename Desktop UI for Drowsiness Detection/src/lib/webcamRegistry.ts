@@ -12,29 +12,21 @@ function keyFor(dev?: number | string) {
 }
 
 async function tryGetUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream> {
-  // Some browsers require https except for localhost
+  // Browsers yêu cầu HTTPS hoặc localhost.
   try {
-    // Skip permission check in Electron (auto-granted by main.js)
-    const isElectron = navigator.userAgent.includes('Electron');
-    console.log('[webcamRegistry] tryGetUserMedia - isElectron:', isElectron);
     console.log('[webcamRegistry] constraints:', JSON.stringify(constraints, null, 2));
-    
-    if (!isElectron) {
-      // Request permission first in browser
-      try {
-        const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-        console.log('Camera permission status:', permission.state);
-        
-        if (permission.state === 'denied') {
-          throw new Error('Camera permission denied by user');
-        }
-      } catch (permError) {
-        console.warn('Permission query not supported, proceeding anyway:', permError);
+
+    // Hỏi quyền camera trước (nếu browser support).
+    try {
+      const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      console.log('Camera permission status:', permission.state);
+      if (permission.state === 'denied') {
+        throw new Error('Camera permission denied by user');
       }
-    } else {
-      console.log('[webcamRegistry] Running in Electron, skipping permission check');
+    } catch (permError) {
+      console.warn('Permission query not supported, proceeding anyway:', permError);
     }
-    
+
     console.log('[webcamRegistry] Calling getUserMedia...');
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     console.log('[webcamRegistry] ✅ getUserMedia SUCCESS, tracks:', stream.getTracks().map(t => `${t.kind}:${t.label} (${t.readyState})`));

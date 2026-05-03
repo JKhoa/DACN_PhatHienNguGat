@@ -1,48 +1,14 @@
 /**
- * API utility — two transports:
- *   - Electron mode: routes through window.appApi (IPC bridge to main process)
- *   - Web mode (localhost): plain fetch to BACKEND_URL
- * Detection is runtime (presence of window.appApi). Public surface
- * (apiGet / apiPost / apiPut / apiDelete) is unchanged.
+ * API utility — localhost only.
+ * Plain fetch tới BACKEND_URL (mặc định http://127.0.0.1:5000).
+ * Override bằng VITE_BACKEND_URL khi cần.
  */
-
-declare global {
-  interface Window {
-    appApi?: {
-      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
-      on: (channel: string, cb: (...args: unknown[]) => void) => () => void;
-      removeAllListeners: (channel: string) => void;
-    };
-  }
-}
-
-interface IpcApiResult {
-  status: number;
-  data: unknown;
-}
 
 const BACKEND_URL =
   (import.meta as any)?.env?.VITE_BACKEND_URL || 'http://127.0.0.1:5000';
 
-function hasIpc(): boolean {
-  return typeof window !== 'undefined' && !!window.appApi;
-}
-
 class API {
   private async request(method: string, endpoint: string, data?: unknown): Promise<Response> {
-    if (hasIpc()) {
-      const result = (await window.appApi!.invoke('api:request', {
-        method,
-        endpoint,
-        data,
-      })) as IpcApiResult;
-      return new Response(JSON.stringify(result.data), {
-        status: result.status,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Web (localhost) fallback — go straight to the backend.
     const url = `${BACKEND_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
     const init: RequestInit = { method, headers: {} };
     if (data !== undefined && data !== null) {
@@ -78,8 +44,7 @@ export const apiPut    = (endpoint: string, data?: unknown)  => api.put(endpoint
 export const apiDelete = (endpoint: string)                  => api.delete(endpoint);
 
 /**
- * Download a PDF/Excel report. Triggers a browser download.
- * Works in both Electron (IPC → base64) and Web (direct POST → blob).
+ * Download a PDF/Excel report — direct POST to backend, response is binary file.
  */
 export async function apiExport(
   format: 'pdf' | 'excel',
@@ -89,36 +54,19 @@ export async function apiExport(
   const ext = format === 'pdf' ? 'pdf' : 'xlsx';
   const filename = `drowsiness_report_${period}.${ext}`;
 
-  const triggerDownload = (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
-    const a = Object.assign(document.createElement('a'), { href: url, download: filename });
-    document.body.appendChild(a);
-    a.click();
-    URL.revokeObjectURL(url);
-    a.remove();
-  };
-
-  if (hasIpc()) {
-    const result = (await window.appApi!.invoke('api:export', {
-      format,
-      period,
-      camera_ids: cameraIds,
-    })) as { status: number; base64: string | null; contentType: string | null };
-    if (result.status >= 200 && result.status < 300 && result.base64) {
-      const bytes = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0));
-      triggerDownload(new Blob([bytes], { type: result.contentType ?? 'application/octet-stream' }));
-      return true;
-    }
-    return false;
-  }
-
-  // Web mode — direct POST to backend, response is the binary file.
   const res = await fetch(`${BACKEND_URL}/api/logs/export/${format}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(cameraIds ? { period, camera_ids: cameraIds } : { period }),
   });
   if (!res.ok) return false;
-  triggerDownload(await res.blob());
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(url);
+  a.remove();
   return true;
 }

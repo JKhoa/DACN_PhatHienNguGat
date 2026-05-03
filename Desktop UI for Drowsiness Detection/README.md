@@ -1,7 +1,7 @@
 
   # Desktop UI cho Phát hiện ngủ gật
 
-  Đây là code bundle cho Desktop UI Phát hiện ngủ gật. Bản thiết kế gốc trên Figma: https://www.figma.com/design/LSvpZ0P3ysfvfn4Ru2PieR/Desktop-UI-for-Drowsiness-Detection.
+  Web app phát hiện ngủ gật + sử dụng điện thoại — chạy localhost. Frontend React/TS (Vite) + Backend Python Flask/SocketIO + YOLO ensemble.
 
   > **Hướng dẫn đầy đủ (yêu cầu hệ thống, cài đặt, troubleshooting):** xem [`../QUICKSTART.md`](../QUICKSTART.md).
 
@@ -12,20 +12,31 @@
   pip install -r python-backend/requirements.txt
   ```
 
-  ## Chạy app — hai chế độ
-
-  **Desktop (Electron)** — một cửa sổ duy nhất, Electron tự động khởi chạy backend Python:
-
-  ```
-  start-desktop.bat
-  ```
-
-  **Web (localhost)** — backend Python + Vite dev server hiển thị trên trình duyệt:
+  ## Chạy localhost
 
   ```
   start-web.bat
   ```
 
-  Frontend tự động phát hiện đang chạy ở chế độ nào (dựa vào sự xuất hiện của `window.appApi`).
-  Ở chế độ web, frontend giao tiếp trực tiếp với `http://127.0.0.1:5000` qua `fetch` và
-  `socket.io-client`. Có thể override URL backend bằng biến môi trường `VITE_BACKEND_URL` nếu cần.
+  Script này khởi động:
+  1. Backend Python tại `http://127.0.0.1:5000` (cửa sổ riêng)
+  2. Vite dev server tại `http://localhost:3000` và tự động mở trình duyệt
+
+  Hoặc chạy thủ công 2 terminal:
+
+  **Terminal 1 — Backend:**
+  ```
+  cd python-backend
+  python server.py
+  ```
+
+  **Terminal 2 — Frontend:**
+  ```
+  npm run dev
+  ```
+
+  Sau đó mở `http://localhost:3000` trong browser.
+
+  ## Cấu hình
+
+  Frontend gọi trực tiếp `http://127.0.0.1:5000` qua `fetch` và `socket.io-client`. Có thể override URL backend bằng biến môi trường `VITE_BACKEND_URL` nếu cần (vd backend ở host khác).

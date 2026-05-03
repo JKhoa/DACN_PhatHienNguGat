@@ -1,11 +1,16 @@
 /**
- * V1 realtime detection WebSocket client — IPC bridge to main process,
- * which owns the socket.io connection to Python namespace `/api/v1/detect/realtime`.
+ * V1 realtime detection WebSocket client — localhost only.
+ * Direct socket.io-client tới namespace /api/v1/detect/realtime.
  *
- * Server protocol (see python-backend/api_v1.py):
+ * Server protocol (xem python-backend/api_v1.py):
  *   client → server: `frame` { image_base64, conf }
  *   server → client: `ready` {...}, `result` {...}, `error` {...}
  */
+import { io, Socket } from 'socket.io-client';
+
+const BACKEND_URL =
+  (import.meta as any)?.env?.VITE_BACKEND_URL || 'http://127.0.0.1:5000';
+const V1_NAMESPACE = '/api/v1/detect/realtime';
 
 export interface V1DetectionObject {
   class_name: string;
@@ -38,10 +43,7 @@ class WSDetectV1 {
   private resultCb?: ResultCb;
   private statusCb?: StatusCb;
   private errorCb?: ErrorCb;
-  private unsubStatus?: () => void;
-  private unsubResult?: () => void;
-  private unsubError?: () => void;
-  private bridgeReady = false;
+  private socket?: Socket;
   connected = false;
 
   get isConnected(): boolean {
@@ -53,49 +55,62 @@ class WSDetectV1 {
   onError(cb: ErrorCb): void { this.errorCb = cb; }
 
   connect(): void {
-    if (this.bridgeReady) return;
-    if (!window.appApi) {
-      console.error('[WS-V1] window.appApi missing — preload.js not loaded?');
-      return;
-    }
+    if (this.socket) return;
+    console.log('[WS-V1] Connecting to', BACKEND_URL + V1_NAMESPACE);
 
-    this.unsubStatus = window.appApi.on('ws:v1:status', (raw: unknown) => {
-      const p = raw as { connected: boolean };
-      this.connected = !!p?.connected;
-      this.statusCb?.(this.connected);
-    });
-    this.unsubResult = window.appApi.on('ws:v1:result', (raw: unknown) => {
-      this.resultCb?.(raw as V1DetectionResult);
-    });
-    this.unsubError = window.appApi.on('ws:v1:error', (raw: unknown) => {
-      this.errorCb?.(raw as { error: string });
+    this.socket = io(BACKEND_URL + V1_NAMESPACE, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 15000,
+      timeout: 10000,
     });
 
-    window.appApi.invoke('ws:v1:connect').catch((e) =>
-      console.warn('[WS-V1] connect failed:', e)
-    );
-    this.bridgeReady = true;
+    this.socket.on('connect', () => {
+      this.connected = true;
+      this.statusCb?.(true);
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      this.connected = false;
+      this.statusCb?.(false);
+      console.log('[WS-V1] disconnected:', reason);
+    });
+
+    this.socket.on('connect_error', (err) => {
+      this.connected = false;
+      this.statusCb?.(false);
+      console.warn('[WS-V1] connect_error:', err.message);
+    });
+
+    this.socket.on('ready', () => {
+      // Server hello — đã sẵn sàng nhận frame.
+    });
+
+    this.socket.on('result', (raw: V1DetectionResult) => {
+      this.resultCb?.(raw);
+    });
+
+    this.socket.on('error', (raw: { error: string }) => {
+      this.errorCb?.(raw);
+    });
   }
 
   sendFrame(imageBase64: string, conf: number): void {
-    if (!this.bridgeReady) this.connect();
-    window.appApi?.invoke('ws:v1:send-frame', { image_base64: imageBase64, conf })
-      .catch(() => { /* ignore, status handler reports disconnect */ });
+    if (!this.connected || !this.socket) return;
+    this.socket.emit('frame', { image_base64: imageBase64, conf });
   }
 
   disconnect(): void {
-    try { this.unsubStatus?.(); } catch { /* noop */ }
-    try { this.unsubResult?.(); } catch { /* noop */ }
-    try { this.unsubError?.(); } catch { /* noop */ }
-    this.unsubStatus = undefined;
-    this.unsubResult = undefined;
-    this.unsubError = undefined;
-    this.bridgeReady = false;
+    if (this.socket) {
+      try { this.socket.disconnect(); } catch {}
+      this.socket = undefined;
+    }
     this.connected = false;
     this.resultCb = undefined;
     this.statusCb = undefined;
     this.errorCb = undefined;
-    window.appApi?.invoke('ws:v1:disconnect').catch(() => { /* ignore */ });
   }
 }
 

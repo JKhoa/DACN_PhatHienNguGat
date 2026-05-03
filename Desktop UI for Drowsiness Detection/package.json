@@ -1,8 +1,8 @@
 {
-    "name": "desktop-ui-drowsiness-detection",
-    "version": "0.1.0",
+    "name": "drowsiness-detection-web",
+    "version": "0.2.0",
     "private": true,
-    "main": "electron/main.js",
+    "type": "module",
     "dependencies": {
         "@radix-ui/react-accordion": "^1.2.3",
         "@radix-ui/react-alert-dialog": "^1.1.6",
@@ -57,21 +57,13 @@
         "@types/react": "^19.2.2",
         "@types/react-dom": "^19.2.2",
         "@vitejs/plugin-react-swc": "^3.10.2",
-        "concurrently": "^9.2.1",
-        "electron": "^38.4.0",
-        "electron-builder": "^26.0.12",
         "typescript": "^5.9.3",
-        "vite": "^6.3.5",
-        "wait-on": "^9.0.1"
+        "vite": "^6.3.5"
     },
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "start": "npm run build && electron .",
-        "electron": "electron .",
-        "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-        "build-electron": "npm run build && electron-builder",
-        "dist": "npm run build && electron-builder --publish=never",
+        "preview": "vite preview",
         "fix-errors": "node scripts/auto-fix-errors.js"
     }
 }

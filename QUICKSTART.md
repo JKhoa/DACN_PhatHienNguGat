@@ -112,9 +112,7 @@ python python-backend\download_models.py
 
 ---
 
-## 6. Chạy app
-
-### Cách A — Web localhost (khuyến nghị cho dev)
+## 6. Chạy app (localhost)
 
 ```powershell
 .\start-web.bat
@@ -140,13 +138,7 @@ npm run dev
 
 Mở browser: http://localhost:3000
 
-### Cách B — Desktop app (Electron)
-
-```powershell
-.\start-desktop.bat
-```
-
-Electron tự spawn backend Python + mở cửa sổ desktop. Không cần browser.
+> **Lưu ý:** App đã được chuyển sang **chỉ chạy localhost**. Phiên bản Electron desktop trước đây đã được loại bỏ — nếu cần có thể quay lại git history (commit trước `5bf6c87`).
 
 ---
 
