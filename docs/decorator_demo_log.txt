@@ -1,0 +1,4 @@
+Thời lượng chạy: 5.01s
+Tổng số frame: 70
+FPS trung bình: 13.97
+FPS tức thời cuối: 97.99

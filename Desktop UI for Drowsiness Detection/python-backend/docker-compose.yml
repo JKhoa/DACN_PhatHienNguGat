@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  python-backend:
+    build: .
+    container_name: dacn-ai-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      # Lưu trữ logs và database ra ngoài máy chủ để không bị mất khi tắt container
+      - ./drowsiness_logs:/app/drowsiness_logs
+      - ./models:/app/models
+    env_file:
+      - .env
+    restart: always
+    # Thiết lập SHM size lớn cho các bài toán AI/Computer Vision
+    shm_size: '2gb'

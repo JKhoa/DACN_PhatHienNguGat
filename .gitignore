@@ -1,0 +1,87 @@
+# ===== Node / Frontend =====
+node_modules/
+node_modules_broken_*/
+dist/
+build/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.local
+.env.*.local
+
+# ===== Python =====
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# ===== Editor / OS =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Datasets / Outputs (KHÔNG push lên GitHub - quá lớn) =====
+DatabaseFull/
+data_raw/
+outputs/
+runs/
+**/runs/
+**/labels.cache
+yolo-sleepy-allinone-final/
+ARCHIVE_NON_APP_PY/
+sleepy_events.csv
+
+# Training datasets (large - giữ ở local)
+**/python-backend/datasets/
+# HuggingFace model cache (đã có file .pt riêng rồi)
+**/hf_cache/
+# Sample test images (large)
+**/python-backend/test_samples/
+
+# ===== Backups =====
+BACKUP_*/
+**/BACKUP_*/
+*.bak
+*.bak.pt
+*.corrupt.*
+best_10.corrupt.20260325_110509.bak.pt
+
+# ===== Logs / Snapshots =====
+*.log
+snapshot_*.png
+snapshot_*.jpg
+temp_*.png
+temp_*.jpg
+
+# ===== SQLite / DB =====
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# ===== Electron build =====
+electron-dist/
+out/
+release/
+
+# ===== Test artifacts =====
+test_outputs/
+test_results/
+*.coverage
+coverage/
+htmlcov/
