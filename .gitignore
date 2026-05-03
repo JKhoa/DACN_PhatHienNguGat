@@ -79,6 +79,41 @@ electron-dist/
 out/
 release/
 
+# ===== Báo cáo / dev log nội bộ (giữ ở local, không push) =====
+/BAO_CAO_KIEM_TRA_TRACKING_BOX.md
+/BAO_CAO_QUAN_TRI_DU_AN_CNTT_NHOM11_V2.md
+/BAO_CAO_TIEN_DO_DE_TAI.md
+/CAMERA_STATUS_SUMMARY.md
+/COMPLETE_FEATURES_SUMMARY.md
+/DATABASE_RECOMMENDATION.md
+/DATA_COLLECTION_REPORT.md
+/DROWSINESS_LOGGING_SUMMARY.md
+/DROWSINESS_TEST_REPORT.md
+/EXAMPLE_URLS.md
+/FINAL-DELIVERABLES.md
+/FIX_FALSE_POSITIVE_DROWSY_DETECTION.md
+/FIX_REVERSED_DETECTION_LOGIC.md
+/HUONG_DAN_KIEM_TRA.md
+/INTEGRATED_DESKTOP_APP_FILES.md
+/Model_Audit.md
+/PROJECT_SUMMARY.md
+/README_DATA_COLLECTION.md
+/REALTIME_PROCESSING_ANALYSIS.md
+/SESSION_FINAL_REPORT.md
+/TESTING_GUIDE_AFTER_FIX.md
+/WEBSOCKET_HEALTH_REPORT.md
+/YOLO-INTEGRATION-GUIDE.md
+/YOLOV5_INTEGRATION.md
+/hướng dẫn file word.md
+/TEST-YOLO-DETECTION.bat
+
+# ===== Weights trùng / gây nhầm lẫn ở root =====
+# best_10.pt ở root chỉ là copy của yolo11n-pose.pt (không phải model
+# fine-tuned drowsiness). Model drowsiness thật là
+# Desktop UI for Drowsiness Detection/python-backend/models/drowsiness_cls.pt
+/best_10.pt
+/yolo11n-pose.pt
+
 # ===== Test artifacts =====
 test_outputs/
 test_results/
