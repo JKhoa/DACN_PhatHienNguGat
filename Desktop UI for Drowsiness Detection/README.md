@@ -1,29 +1,31 @@
 
-  # Desktop UI for Drowsiness Detection
+  # Desktop UI cho Phát hiện ngủ gật
 
-  This is a code bundle for Desktop UI for Drowsiness Detection. The original project is available at https://www.figma.com/design/LSvpZ0P3ysfvfn4Ru2PieR/Desktop-UI-for-Drowsiness-Detection.
+  Đây là code bundle cho Desktop UI Phát hiện ngủ gật. Bản thiết kế gốc trên Figma: https://www.figma.com/design/LSvpZ0P3ysfvfn4Ru2PieR/Desktop-UI-for-Drowsiness-Detection.
 
-  ## Setup
+  > **Hướng dẫn đầy đủ (yêu cầu hệ thống, cài đặt, troubleshooting):** xem [`../QUICKSTART.md`](../QUICKSTART.md).
+
+  ## Cài đặt
 
   ```
   npm install
   pip install -r python-backend/requirements.txt
   ```
 
-  ## Running — two modes
+  ## Chạy app — hai chế độ
 
-  **Desktop (Electron)** — one window, Electron auto-spawns the Python backend:
+  **Desktop (Electron)** — một cửa sổ duy nhất, Electron tự động khởi chạy backend Python:
 
   ```
   start-desktop.bat
   ```
 
-  **Web (localhost)** — Python backend + Vite dev server in browser:
+  **Web (localhost)** — backend Python + Vite dev server hiển thị trên trình duyệt:
 
   ```
   start-web.bat
   ```
 
-  The frontend auto-detects which mode it's in (presence of `window.appApi`).
-  In web mode it talks directly to `http://127.0.0.1:5000` via `fetch` and
-  `socket.io-client`. Override the backend URL with `VITE_BACKEND_URL` if needed.
+  Frontend tự động phát hiện đang chạy ở chế độ nào (dựa vào sự xuất hiện của `window.appApi`).
+  Ở chế độ web, frontend giao tiếp trực tiếp với `http://127.0.0.1:5000` qua `fetch` và
+  `socket.io-client`. Có thể override URL backend bằng biến môi trường `VITE_BACKEND_URL` nếu cần.
